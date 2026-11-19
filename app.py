@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import html as _html
 import io
 import json
 import re
@@ -68,177 +69,232 @@ AGE_BAND_GUIDANCE = {
 }
 
 MARKER_NOTES = """NOTES TO MARKERS (apply strictly):
-1. Marking should always begin from the LOWEST mark in each category and work upward.
-2. Use a 'best fit' judgement: first decide which band the response falls into, then which specific mark within that band.
-3. If SOME criteria within a band are met but NOT ALL, give the LOWER mark in that band.
-4. Award 0 marks where the performance fails to meet the lowest band criteria.
-5. Word-count rules (Cambridge Stage 5 Paper 1):
-   - 20 words or fewer  -> 0 marks total.
-   - 21-60 words        -> maximum 7 marks total (across all 5 categories).
-   - 61+ words          -> full 25-mark range applies."""
+1. Begin marking from the LOWEST mark in each category and work upward.
+2. Best-fit judgement: pick the band, then the mark within it.
+3. If SOME criteria in a band are met but not ALL, give the LOWER mark.
+4. Award 0 marks where the response fails the lowest band.
+5. Word-count rules (Cambridge Stage 5):
+   - <=20 words  -> 0 marks total
+   - 21-60 words -> max 7 marks total
+   - 61+ words   -> full 25-mark range"""
 
-RUBRICS = {
-    "Fiction (Story)": {
-        "text": (
-            "Fiction Writing Rubric (Total: 25 Marks):\n"
-            "1. Creation of Texts (Wc) - 5 Marks: Genre features, character/setting development, narrative viewpoint.\n"
-            "2. Vocabulary & Language (Wv) - 3 Marks: Sensory details, figurative language.\n"
-            "3. Grammar & Punctuation (Wg) - 7 Marks: Verb tenses, sentence structures, punctuation.\n"
-            "4. Structure of Texts (Ws) - 7 Marks: Sequencing, paragraphs, linking devices.\n"
-            "5. Word Structure (Ww) - 3 Marks: Spelling, prefixes, suffixes."
-        ),
-        "max": {"Wc": 5, "Wv": 3, "Wg": 7, "Ws": 7, "Ww": 3},
-        "bands": None,
-    },
-    "Non-Fiction": {
-        "text": (
-            "Non-Fiction Writing Rubric (Total: 25 Marks):\n"
-            "1. Creation of Texts (Wc) - 5 Marks: Genre features, target audience, clear purpose.\n"
-            "2. Vocabulary & Language (Wv) - 3 Marks: Genre-specific techniques, tone/mood.\n"
-            "3. Grammar & Punctuation (Wg) - 7 Marks: Correct verb tenses, sentence variety.\n"
-            "4. Structure of Texts (Ws) - 7 Marks: Paragraph grouping, logical sequence, subheadings.\n"
-            "5. Word Structure (Ww) - 3 Marks: Spelling, homophones."
-        ),
-        "max": {"Wc": 5, "Wv": 3, "Wg": 7, "Ws": 7, "Ww": 3},
-        "bands": {
-            "top": {
-                "range": {
-                    "Wc": (4, 5), "Wv": (3, 3),
-                    "Wg": (6, 7), "Ws": (6, 7), "Ww": (3, 3),
-                },
-                "Wc": (
-                    "A relevant response with well-chosen ideas and content. Some ideas "
-                    "and material are developed in detail. Main features of the text type "
-                    "are clear. Consistent viewpoint well-presented and justified. A "
-                    "relationship between writer and reader is established and maintained "
-                    "throughout the text."
-                ),
-                "Wv": (
-                    "Words and phrases chosen to convey mood and feeling so that the "
-                    "writing sustains the reader's interest. Specialised vocabulary is "
-                    "used that is suitable for the text type. Good attempts to use "
-                    "synonyms for shades of meaning."
-                ),
-                "Wg": (
-                    "Grammar is almost always accurate throughout the text including "
-                    "simple, compound and complex sentences. Multi-clause sentences "
-                    "combine simple sentences and/or re-order clauses. Pronouns and "
-                    "possessive pronouns, modal verbs, adjectives and adverbs "
-                    "(comparative/superlative) are all used correctly. Punctuation is "
-                    "used accurately to demarcate sentences and for direct speech. Use "
-                    "of apostrophes is accurate. Commas are always used in lists and "
-                    "often to mark clauses in complex sentences."
-                ),
-                "Ws": (
-                    "Content is organised so that ideas are developed cohesively "
-                    "throughout most of a piece of sustained writing. Paragraphs and "
-                    "sections are organised to achieve an appropriate effect for the "
-                    "text type."
-                ),
-                "Ww": (
-                    "Correct spelling of words with less common letter strings that are "
-                    "pronounced differently, e.g. pour, hour, piece, pie. Some "
-                    "successful attempts to spell exceptions to known spelling rules. "
-                    "Correctly spell words with silent vowels and syllables in a range "
-                    "of polysyllabic words, e.g. library, interest. Spell common "
-                    "homonyms correctly, e.g. wave (gesture), wave (sea). Spell words "
-                    "with a wide range of prefixes and suffixes, including opposites "
-                    "(un-, im-) correctly. Spell words with double consonants correctly."
-                ),
-            },
-            "middle": {
-                "range": {
-                    "Wc": (3, 3), "Wv": (3, 3),
-                    "Wg": (4, 5), "Ws": (4, 5), "Ww": (3, 3),
-                },
-                "Wc": (
-                    "Purpose of writing is clear and appropriate to the given text type "
-                    "where features are clearly evident. A straightforward viewpoint "
-                    "which is generally consistent and appropriate for the purpose and "
-                    "the audience."
-                ),
-                "Wv": (
-                    "Words and phrases chosen to convey mood and feeling so that the "
-                    "writing sustains the reader's interest. Specialised vocabulary is "
-                    "used that is suitable for the text type. Good attempts to use "
-                    "synonyms for shades of meaning."
-                ),
-                "Wg": (
-                    "Uses an increasing range of sentence types accurately, including "
-                    "good attempts at complex structures. Use of expanded phrases to "
-                    "develop ideas (noun, adverbial, adjectival, and verb phrases; a "
-                    "range of connectives; past, present and future verb forms "
-                    "accurate). Punctuation is used consistently and accurately to "
-                    "demarcate sentences. Direct speech punctuation includes other "
-                    "punctuation alongside speech marks (errors may occur where "
-                    "structures are ambitious). Apostrophes correct for possession "
-                    "(sing./plural). Commas always used in lists and often to clarify "
-                    "meaning in sentences."
-                ),
-                "Ws": (
-                    "Paragraphs and sections are used consistently to organise ideas. "
-                    "Chronological or logical links between paragraphs help the "
-                    "development of ideas. Cohesion between paragraphs is achieved "
-                    "using devices such as connectives to establish links. "
-                    "Organisational devices evident such as bullets and numbered lists."
-                ),
-                "Ww": (
-                    "Correct spelling of words with common letter strings, but "
-                    "different pronunciations, e.g. through, tough. Spelling of a "
-                    "range of common prefixes and suffixes is correct. Spelling of "
-                    "common homophones is correct within their grammatical purpose, "
-                    "e.g. they're, their, there. Some correct spelling of long and "
-                    "short vowel phonemes. Spelling of plurals is usually correct, "
-                    "e.g. -s, -es, -y/ies, and -f/ves."
-                ),
-            },
-            "bottom": {
-                "range": {
-                    "Wc": (2, 2), "Wv": (2, 2),
-                    "Wg": (2, 3), "Ws": (2, 3), "Ww": (2, 2),
-                },
-                "Wc": (
-                    "A relevant response that elaborates on basic information with some "
-                    "development of essential detail. Writing for a given purpose uses "
-                    "language and features appropriate to the text type. Use of content "
-                    "and language in writing shows awareness of audience."
-                ),
-                "Wv": (
-                    "Accurate use of vocabulary includes a variety of appropriate "
-                    "choices to convey meaning that is consistent and effective for the "
-                    "text type. Choice of words and phrases strengthen the impact of "
-                    "writing. Some variation in sentence openings beyond repetition of "
-                    "nouns and pronouns."
-                ),
-                "Wg": (
-                    "Generally correct grammar: subject/verb agreement; correct past "
-                    "and present tense of regular and common irregular verbs; a mix of "
-                    "simple and compound sentences where compound sentences use simple "
-                    "connectives to join clauses. Apostrophes of omission are correct. "
-                    "Full stops, question marks and exclamation marks are used "
-                    "correctly. Note: if punctuation is totally lacking and other "
-                    "descriptors met then give the lower mark here."
-                ),
-                "Ws": (
-                    "Structure is clear using paragraphs/sections with good attempts to "
-                    "organise the content. Ideas set out in a logical sequence, making "
-                    "relationships between them clear. Links between paragraphs/sections "
-                    "to help the development of ideas are evident but may not be "
-                    "consistent."
-                ),
-                "Ww": (
-                    "Spelling of words with common letter strings but different "
-                    "pronunciations is correct, e.g. through, tough. Spelling of a "
-                    "range of common prefixes and suffixes is correct. Spelling of "
-                    "common homophones is correct within their grammatical purpose, "
-                    "e.g. they're, their, there. Some correct spelling of long and "
-                    "short vowel phonemes. Spelling of plurals is usually correct, "
-                    "e.g. -s, -es, -y/ies, and -f/ves."
-                ),
-            },
-        },
-    },
-}
+RUBRICS = {'Fiction (Story)': {'max': {'Wc': 5, 'Wv': 3, 'Wg': 7, 'Ws': 7, 'Ww': 3},
+                     'bands': {'top': {'range': {'Wc': (4, 5),
+                                                 'Wv': (3, 3),
+                                                 'Wg': (6, 7),
+                                                 'Ws': (6, 7),
+                                                 'Ww': (3, 3)},
+                                       'Wc': 'Narrative has ideas and content with detail '
+                                             'developed using well-chosen vocabulary for the '
+                                             'genre. Main features of the genre are clear. '
+                                             'Viewpoint is consistent and may include a '
+                                             "character's opinions of events / settings / other "
+                                             'characters. Writing may develop a given narrative '
+                                             'with new scenes/characters. Playscripts include '
+                                             'production notes / stage directions.',
+                                       'Wv': 'A relevant response with well-chosen ideas and '
+                                             'content. Some ideas and material are developed in '
+                                             'detail. Descriptions of characters include details '
+                                             'that help to develop story. Descriptions of settings '
+                                             'and characters show detail using enhanced vocabulary '
+                                             'to engage the reader. Playscripts are based upon '
+                                             'original ideas.',
+                                       'Wg': 'Grammar almost always accurate including simple, '
+                                             'compound and complex sentences. Multi-clause '
+                                             'sentences combine simple sentences and/or re-order '
+                                             'clauses. Pronouns and possessive pronouns, modal '
+                                             'verbs, adjectives and adverbs '
+                                             '(comparative/superlative) all used correctly. '
+                                             'Punctuation accurate to demarcate sentences and for '
+                                             'direct speech. Apostrophes accurate. Commas always '
+                                             'used in lists and often to mark clauses.',
+                                       'Ws': 'Content organised so that ideas are developed '
+                                             'cohesively throughout most of a sustained piece. '
+                                             'Paragraphs and sections are organised to achieve an '
+                                             'appropriate effect for the genre.',
+                                       'Ww': 'Correct spelling of words with less common letter '
+                                             'strings. Some successful attempts to spell '
+                                             'exceptions to known spelling rules. Correctly spell '
+                                             'words with silent vowels and syllables in a range of '
+                                             'polysyllabic words. Spell common homonyms correctly. '
+                                             'Spell words with a wide range of prefixes and '
+                                             'suffixes including opposites. Spell words with '
+                                             'double consonants correctly.'},
+                               'middle': {'range': {'Wc': (3, 3),
+                                                    'Wv': (3, 3),
+                                                    'Wg': (4, 5),
+                                                    'Ws': (4, 5),
+                                                    'Ww': (3, 3)},
+                                          'Wc': 'A relevant response with well-chosen ideas and '
+                                                'content. Some ideas and material are developed in '
+                                                'detail. Descriptions of characters include '
+                                                'details that help to develop story. Descriptions '
+                                                'of settings and characters show detail using '
+                                                'enhanced vocabulary to engage the reader. '
+                                                'Playscripts are based upon original ideas.',
+                                          'Wv': 'Purpose of writing is clear and appropriate to '
+                                                'the given genre where features are clearly '
+                                                'evident. A straightforward viewpoint which is '
+                                                'generally consistent and appropriate. Words and '
+                                                'phrases chosen to convey mood and feeling so that '
+                                                "the writing sustains the reader's interest. "
+                                                'Specialised vocabulary used. Figurative language '
+                                                'developed to include alliteration and similes. '
+                                                'Good attempts to use synonyms and '
+                                                'adjectives/adverbs for shades of meaning.',
+                                          'Wg': 'Uses an increasing range of sentence types '
+                                                'accurately, including good attempts at complex '
+                                                'structures. Use of expanded phrases to develop '
+                                                'ideas. Punctuation used consistently and '
+                                                'accurately to demarcate sentences. Direct speech '
+                                                'punctuation includes other punctuation. '
+                                                'Apostrophes correct for possession. Commas always '
+                                                'used in lists and often to clarify meaning.',
+                                          'Ws': 'Paragraphs and sections used consistently to '
+                                                'organise ideas. Chronological or logical links '
+                                                'between paragraphs help the development of ideas. '
+                                                'Cohesion achieved using connectives to establish '
+                                                'links.',
+                                          'Ww': 'Correct spelling of words with less common letter '
+                                                'strings. Some successful attempts to spell '
+                                                'exceptions to known spelling rules. Correctly '
+                                                'spell words with silent vowels and syllables in '
+                                                'polysyllabic words. Spell common homonyms '
+                                                'correctly. Spell words with a wide range of '
+                                                'prefixes and suffixes. Spell words with double '
+                                                'consonants correctly.'},
+                               'bottom': {'range': {'Wc': (1, 1),
+                                                    'Wv': (1, 1),
+                                                    'Wg': (1, 1),
+                                                    'Ws': (1, 1),
+                                                    'Ww': (1, 1)},
+                                          'Wc': 'Some basic material included that is relevant to '
+                                                'the genre. Some elements of the genre can be '
+                                                'seen. (A maximum of 1 mark can be awarded if not '
+                                                'the given genre.)',
+                                          'Wv': 'Vocabulary is simple and relevant.',
+                                          'Wg': 'Some simple sentence structures are used '
+                                                'successfully. Some correct use of punctuation, '
+                                                'such as full stops and capital letters. Note: do '
+                                                'not discriminate if learners write with good '
+                                                'English but there are punctuation errors. If '
+                                                'ambitious structures are used, begin marking at '
+                                                '2-3 marks, provided there is variation in '
+                                                'sentence openings.',
+                                          'Ws': 'Paragraphs/sections are generally used to help '
+                                                'organise and develop a story.',
+                                          'Ww': 'Spelling of common inflections is usually '
+                                                'accurate. All simple high frequency words are '
+                                                'spelt correctly. Spelling of high frequency words '
+                                                'is generally correct. Some successful attempts to '
+                                                'phonetically spell polysyllabic and compound '
+                                                'words.'}},
+                     'text': 'Fiction Writing Rubric (Total: 25 Marks):\n'
+                             '1. Creation of Texts (Wc) - 5 Marks: Genre features, '
+                             'character/setting development, narrative viewpoint.\n'
+                             '2. Vocabulary & Language (Wv) - 3 Marks: Sensory details, figurative '
+                             'language.\n'
+                             '3. Grammar & Punctuation (Wg) - 7 Marks: Verb tenses, sentence '
+                             'structures, punctuation.\n'
+                             '4. Structure of Texts (Ws) - 7 Marks: Sequencing, paragraphs, '
+                             'linking devices.\n'
+                             '5. Word Structure (Ww) - 3 Marks: Spelling, prefixes, suffixes.'},
+ 'Non-Fiction': {'max': {'Wc': 5, 'Wv': 3, 'Wg': 7, 'Ws': 7, 'Ww': 3},
+                 'bands': {'top': {'range': {'Wc': (4, 5),
+                                             'Wv': (3, 3),
+                                             'Wg': (6, 7),
+                                             'Ws': (6, 7),
+                                             'Ww': (3, 3)},
+                                   'Wc': 'A relevant response with well-chosen ideas and content. '
+                                         'Some ideas and material are developed in detail. Main '
+                                         'features of the text type are clear. Consistent '
+                                         'viewpoint well-presented and justified. A relationship '
+                                         'between writer and reader is established and maintained '
+                                         'throughout.',
+                                   'Wv': 'Words and phrases chosen to convey mood and feeling so '
+                                         "that the writing sustains the reader's interest. "
+                                         'Specialised vocabulary used. Good attempts to use '
+                                         'synonyms for shades of meaning.',
+                                   'Wg': 'Grammar almost always accurate including simple, '
+                                         'compound and complex sentences. Multi-clause sentences '
+                                         'combine simple sentences and/or re-order clauses. '
+                                         'Pronouns, modal verbs, adjectives and adverbs all used '
+                                         'correctly. Punctuation accurate for sentences and direct '
+                                         'speech. Apostrophes accurate. Commas always used in '
+                                         'lists and often to mark clauses.',
+                                   'Ws': 'Content organised so that ideas are developed cohesively '
+                                         'throughout most of a sustained piece. Paragraphs and '
+                                         'sections are organised to achieve an appropriate effect '
+                                         'for the text type.',
+                                   'Ww': 'Correct spelling of words with less common letter '
+                                         'strings. Some successful attempts to spell exceptions to '
+                                         'spelling rules. Silent vowels and syllables correct. '
+                                         'Common homonyms correct. Wide range of prefixes and '
+                                         'suffixes correct. Double consonants correct.'},
+                           'middle': {'range': {'Wc': (3, 3),
+                                                'Wv': (3, 3),
+                                                'Wg': (4, 5),
+                                                'Ws': (4, 5),
+                                                'Ww': (3, 3)},
+                                      'Wc': 'Purpose of writing clear and appropriate to the given '
+                                            'text type where features are clearly evident. A '
+                                            'straightforward viewpoint generally consistent and '
+                                            'appropriate for the purpose and audience.',
+                                      'Wv': 'Words and phrases chosen to convey mood and feeling. '
+                                            'Specialised vocabulary used. Good attempts to use '
+                                            'synonyms for shades of meaning.',
+                                      'Wg': 'Uses increasing range of sentence types accurately, '
+                                            'including good attempts at complex structures. '
+                                            'Expanded phrases to develop ideas. Punctuation used '
+                                            'consistently. Direct speech punctuation includes '
+                                            'other punctuation. Apostrophes correct for '
+                                            'possession. Commas for lists and clarity.',
+                                      'Ws': 'Paragraphs and sections used consistently to organise '
+                                            'ideas. Chronological or logical links between '
+                                            'paragraphs help development. Cohesion achieved using '
+                                            'connectives. Organisational devices evident such as '
+                                            'bullets and numbered lists.',
+                                      'Ww': 'Correct spelling of words with common letter strings '
+                                            'but different pronunciations. Range of common '
+                                            'prefixes and suffixes correct. Common homophones '
+                                            'correct. Some correct spelling of long and short '
+                                            'vowel phonemes. Plurals usually correct.'},
+                           'bottom': {'range': {'Wc': (2, 2),
+                                                'Wv': (2, 2),
+                                                'Wg': (2, 3),
+                                                'Ws': (2, 3),
+                                                'Ww': (2, 2)},
+                                      'Wc': 'A relevant response that elaborates on basic '
+                                            'information with some development of essential '
+                                            'detail. Writing for a given purpose uses language and '
+                                            'features appropriate to the text type. Use of content '
+                                            'and language shows awareness of audience.',
+                                      'Wv': 'Accurate vocabulary includes appropriate choices. '
+                                            'Choice of words and phrases strengthens impact. Some '
+                                            'variation in sentence openings.',
+                                      'Wg': 'Generally correct grammar: subject/verb agreement, '
+                                            'correct tenses, mix of simple and compound sentences. '
+                                            'Apostrophes of omission correct. Full stops, question '
+                                            'and exclamation marks correct. If punctuation is '
+                                            'totally lacking, give lower mark.',
+                                      'Ws': 'Structure clear using paragraphs/sections with good '
+                                            'attempts to organise. Ideas set out logically with '
+                                            'clear relationships. Links between paragraphs evident '
+                                            'but may not be consistent.',
+                                      'Ww': 'Spelling of words with common letter strings correct. '
+                                            'Range of common prefixes and suffixes correct. Common '
+                                            'homophones correct. Some correct spelling of long and '
+                                            'short vowel phonemes. Plurals usually correct.'}},
+                 'text': 'Non-Fiction Writing Rubric (Total: 25 Marks):\n'
+                         '1. Creation of Texts (Wc) - 5 Marks: Genre features, target audience, '
+                         'clear purpose.\n'
+                         '2. Vocabulary & Language (Wv) - 3 Marks: Genre-specific techniques, '
+                         'tone/mood.\n'
+                         '3. Grammar & Punctuation (Wg) - 7 Marks: Correct verb tenses, sentence '
+                         'variety.\n'
+                         '4. Structure of Texts (Ws) - 7 Marks: Paragraph grouping, logical '
+                         'sequence, subheadings.\n'
+                         '5. Word Structure (Ww) - 3 Marks: Spelling, homophones.'}}
 
 CATEGORY_LABELS = {
     "Wc": "Creation of Texts",
@@ -257,35 +313,248 @@ CATEGORY_COLORS = {
 }
 
 NON_FICTION_SUBGENRES = {
-    "I. Informational": (
-        "Instructional Writing",
-        "Non-chronological Report",
-        "Explanatory",
-    ),
-    "II. Recount": (
-        "News Report",
-        "Diary",
-        "Friendly Letter",
-        "Formal Letter",
-        "Personal Recount",
-        "Biography/Autobiography",
-    ),
-    "III. Discursive": (
-        "Persuasive Writing",
-        "Discussion (Balanced Argument)",
-        "Opinion Piece",
-    ),
+    "I. Informational": ("Instructional Writing", "Non-chronological Report", "Explanatory"),
+    "II. Recount": ("News Report", "Diary", "Friendly Letter", "Formal Letter",
+                    "Personal Recount", "Biography/Autobiography"),
+    "III. Discursive": ("Persuasive Writing", "Discussion (Balanced Argument)", "Opinion Piece"),
 }
 
 FICTION_STYLES = {
     "Genres": ("Adventure", "Fantasy", "Realistic Fiction"),
-    "Core Skills": (
-        "Universal Blueprint",
-        "Describing a Setting",
-        "Describing a Character",
-        "Writing Dialogue",
+    "Core Skills": ("Universal Blueprint", "Describing a Setting",
+                    "Describing a Character", "Writing Dialogue"),
+}
+
+STAGE6_CODES = {
+    "Wc": {
+        "6Wc.01": {"text": "Develop creative writing in a range of genres", "stretch": True},
+        "6Wc.02": {"text": "Use effective planning to inform content and structure"},
+        "6Wc.03": {"text": "Develop descriptions of settings, characters and action"},
+        "6Wc.04": {"text": "Include different viewpoints in fiction"},
+        "6Wc.05": {"text": "Write a playscript with production notes and stage directions"},
+        "6Wc.06": {"text": "Write for a purpose using language and features appropriate to text type", "stretch": True},
+        "6Wc.07": {"text": "Write for a specified audience", "stretch": True},
+        "6Wc.08": {"text": "Write balanced arguments developing points logically"},
+    },
+    "Ws": {
+        "6Ws.01": {"text": "Manage development of an idea across extended writing"},
+        "6Ws.02": {"text": "Use paragraphs, sections and chapters to organise ideas"},
+        "6Ws.03": {"text": "Use a range of connectives to link paragraphs cohesively"},
+        "6Ws.04": {"text": "Use organisational features appropriate to text type", "stretch": True},
+    },
+    "Wg": {
+        "6Wg.01": {"text": "Use commas, dashes and brackets parenthetically"},
+        "6Wg.02": {"text": "Punctuate direct and reported speech accurately"},
+        "6Wg.03": {"text": "Use punctuation to clarify meaning in complex sentences"},
+        "6Wg.04": {"text": "Use a variety of simple, compound and complex sentences"},
+        "6Wg.05": {"text": "Use active and passive verb forms"},
+        "6Wg.06": {"text": "Ensure agreement of quantifiers (less/fewer)"},
+        "6Wg.07": {"text": "Use relative pronouns for additional detail"},
+        "6Wg.08": {"text": "Use standard English conventions"},
+    },
+    "Ww": {
+        "6Ww.01": {"text": "Explore different ways of representing consonants"},
+        "6Ww.02": {"text": "Spell words with different suffixes but similar pronunciation"},
+        "6Ww.03": {"text": "Add prefixes and suffixes to root words"},
+        "6Ww.04": {"text": "Spell familiar homophones and commonly confused words"},
+        "6Ww.05": {"text": "Explore spelling rules and exceptions"},
+        "6Ww.06": {"text": "Use effective spelling strategies"},
+        "6Ww.07": {"text": "Use tools to find correct spellings and maintain logs", "stretch": True},
+    },
+    "Wv": {
+        "6Wv.01": {"text": "Use specialised vocabulary accurately", "stretch": True},
+        "6Wv.02": {"text": "Explore words and phrases for shades of meaning"},
+        "6Wv.03": {"text": "Transform meaning with prefixes and suffixes"},
+        "6Wv.04": {"text": "Choose vocabulary carefully for imaginative detail"},
+        "6Wv.05": {"text": "Use figurative language to evoke response", "stretch": True},
+        "6Wv.06": {"text": "Use word lists and dictionaries to extend vocabulary", "stretch": True},
+    },
+}
+
+SUBGENRE_KEY = {
+    "Non-chronological Report": ("Non-chronological Report", "Non-Fiction"),
+    "Explanatory": ("Explanatory Writing", "Non-Fiction"),
+    "Instructional Writing": ("Instructional Writing", "Non-Fiction"),
+    "News Report": ("News Report", "Non-Fiction"),
+    "Personal Recount": ("Personal Recount", "Non-Fiction"),
+    "Autobiography": ("Autobiography", "Non-Fiction"),
+    "Biography/Autobiography": ("Biography", "Non-Fiction"),
+    "Diary": ("Diary", "Non-Fiction"),
+    "Discussion (Balanced Argument)": ("Balanced Argument", "Non-Fiction"),
+    "Opinion Piece": ("Opinion Piece", "Non-Fiction"),
+    "Persuasive Writing": ("Persuasive Writing", "Non-Fiction"),
+    "Formal Letter": ("Formal Letter", "Non-Fiction"),
+    "Friendly Letter": ("Friendly Letter", "Non-Fiction"),
+    "Adventure": ("Adventure", "Fiction"),
+    "Fantasy": ("Fantasy", "Fiction"),
+    "Realistic Fiction": ("Realistic Fiction", "Fiction"),
+    "Universal Blueprint": ("Universal Blueprint", "Fiction"),
+    "Describing a Setting": ("Describing a Setting", "Fiction"),
+    "Describing a Character": ("Describing a Character", "Fiction"),
+    "Writing Dialogue": ("Writing Dialogue", "Fiction"),
+}
+
+BLOCK_SUBSECTIONS = {
+    ("Autobiography", "Block 3: Main Body"): ("Childhood & Early Life", "Growth & Development",
+                                                "Achievements & Important Experiences"),
+    ("Biography", "Block 3: Main Body"): ("Early Life", "Career or Major Life Events",
+                                            "Achievements and Impact"),
+    ("Diary", "Block 4: Main Body"): ("Beginning of the Day", "Main Events", "Later Events"),
+    ("Balanced Argument", "Block 3: Main Body"): ("Argument For", "Develop the Argument For",
+                                                    "Argument Against", "Develop the Argument Against"),
+    ("Opinion Piece", "Block 3: Main Body"): ("Strongest Argument", "Additional Argument",
+                                                "Counterargument (refuted)"),
+    ("Persuasive Writing::Article", "Block 3: Main Body"): ("Strongest Argument", "Second Strong Argument",
+                                                              "Counterargument"),
+    ("Persuasive Writing::Leaflet", "Block 3: Key Sections"): ("The Problem", "The Solution",
+                                                                 "How You Can Help"),
+    ("Persuasive Writing::Speech", "Block 3: Main Arguments"): ("My Vision", "Why It Matters",
+                                                                  "What We Must Do"),
+    ("Persuasive Writing::Letter", "Block 4: Main Body"): ("My Concern", "My Proposal", "The Benefits"),
+    ("Persuasive Writing::Advertisement", "Block 3: The Solution"): ("What We Offer", "Why You Need It",
+                                                                       "What to Do"),
+    ("Formal Letter", "Block 3: Main Body"): ("The Issue", "Development", "Further Details"),
+    ("Friendly Letter", "Block 3: Main Body"): ("First News", "More Details & Feelings", "Final Points"),
+}
+
+PERSUASIVE_LAYOUTS = ("Article", "Leaflet", "Speech", "Letter", "Advertisement")
+
+SINGLE_LINE_BLOCKS = {
+    "Block 1: Day and Date", "Block 2: Salutation", "Block 6: Closing / Sign-Off",
+    "Block 1: Header (Date, Address & Greeting)", "Block 4: Sign-Off (Conclusion, Closing & Signature)",
+    "Block 3: Byline", "Block 1: Your Address & Date", "Block 2: Recipient & Salutation",
+    "Block 6: Sign-Off",
+}
+
+FICTION_GENRES = {"Adventure", "Fantasy", "Realistic Fiction", "Universal Blueprint"}
+
+SKILL_FOCUS_GENRES = {"Describing a Setting", "Describing a Character", "Writing Dialogue"}
+
+PERSUASIVE_FEATURES = {
+    "lower": (
+        "Use 'I' to state your viewpoint clearly.",
+        "Speak directly to the reader using 'you'.",
+        "Ask rhetorical questions to make the reader think.",
+        "Describe a worst-case scenario to show why action is urgent.",
+        "Share your opinion confidently.",
+        "Use command verbs to urge action (act now, make a difference).",
+        "Use emotive words to create a strong feeling.",
+        "Use strong modal verbs (must, should, need to, have to).",
+        "Write mostly in the present tense so the issue feels urgent.",
+        "Pick a tone that fits your audience.",
+        "Use persuasive techniques (DAFORESTI): Direct address, Alliteration, Facts, Opinions, Rhetorical questions, Emotive language, Statistics, Triplets, Imperatives.",
+        "Use linking words (firstly, furthermore, therefore, however).",
+        "End with a strong final statement or call to action.",
+    ),
+    "upper": (
+        "Deploy first-person pronouns purposefully to signal conviction.",
+        "Address the reader in second person to create immediacy.",
+        "Use rhetorical questions to engage and prompt reflection.",
+        "Present a worst-case scenario to demonstrate consequences of inaction.",
+        "State your position with confidence and clarity; avoid hedging.",
+        "Use imperative verbs to drive action.",
+        "Deploy emotive language strategically.",
+        "Sustain a register calibrated to audience.",
+        "Use strong modal verbs (must, should, need to, have to).",
+        "Anchor in present tense for immediacy.",
+        "Deploy the full DAFORESTI repertoire - Direct address, Alliteration, Facts, Opinions, Rhetorical questions, Emotive language, Statistics, Triplets, Imperatives.",
+        "Use connective devices purposefully.",
+        "Close with a strong concluding statement or call to action.",
     ),
 }
+
+FICTION_ARC_BLOCKS = (
+    "Block 1: Exposition",
+    "Block 2: Rising Action",
+    "Block 3: Climax",
+    "Block 4: Falling Action",
+    "Block 5: Resolution",
+)
+
+FICTION_ARC_INFO = {
+    "Block 1: Exposition": "Introduce your character, setting, and give a hint of what's coming.",
+    "Block 2: Rising Action": "The conflict appears. Tension builds. The character starts to change.",
+    "Block 3: Climax": "The story's peak. Everything changes.",
+    "Block 4: Falling Action": "The tension eases. Show what the climax meant, prepare for the ending.",
+    "Block 5: Resolution": "The story ends. The problem is solved. The character is changed.",
+}
+
+STEAL_ASPECTS = {
+    "S": ("Speech", "How they talk, tone, word choice"),
+    "T": ("Thoughts", "What they think or believe"),
+    "E": ("Effect on others", "How people react around them"),
+    "A": ("Actions", "What they do"),
+    "L": ("Looks", "Posture, clothing, expression"),
+}
+
+SUSPENSE_LIBRARY = {
+    "Punctuation": (
+        ("Dash (—)", "Interruption or trailing thought"),
+        ("Ellipsis (…)", "A pause or unfinished idea"),
+        ("Exclamation (!)", "Sharp surprise or alarm"),
+    ),
+    "Sentence Structure": (
+        ("Short sentences", "Pace quickens"),
+        ("One-word sentences", "Punch, shock"),
+        ("Repetition", "Insistence, building"),
+        ("Varied openers", "Avoid monotony"),
+        ("Action verbs", "Movement, energy"),
+        ("Passive voice", "Hide who acted"),
+        ("Adverbs (boosters)", "Suddenly, urgently"),
+    ),
+    "Vocabulary & Language": (
+        ("Sensory details", "See / hear / feel / etc"),
+        ("Imagery", "Mental pictures"),
+        ("Figurative language", "Similes, metaphors"),
+        ("Powerful adjectives", "Vivid over generic"),
+        ("Mood words", "Match the atmosphere"),
+        ("Idioms", "Implied meaning"),
+        ("Prefixes / suffixes", "Strengthen meaning"),
+    ),
+    "Text Structure": (
+        ("Single-sentence paragraphs", "Isolation, weight"),
+        ("Flashbacks", "Reveal + build"),
+        ("Varied paragraph openings", "Sustain interest"),
+        ("Connectives", "Link tension"),
+        ("Repeated words / pronouns", "Cohesion"),
+    ),
+}
+
+ARCHETYPE_TEMPLATES = {
+    "Getting Lost": {
+        "conflict": "Man vs Nature",
+        "s1": "Without warning, the familiar path disappeared as [Character Name] stumbled into the unknown area.",
+        "s2": "His heart was pounding and drumming, and his feet felt like they were glued to the ground.",
+        "s3": "Because every direction looked exactly the same, he realised he was completely lost and had no idea how to get back.",
+    },
+    "Sudden Attack / Being Chased": {
+        "conflict": "Man vs Man or Nature",
+        "s1": "Suddenly, a loud snap broke the silence as [Character Name] turned around.",
+        "s2": "With fast, heavy breathing, he gasped and quickly covered his mouth with his trembling hands.",
+        "s3": "Even though he tried to stay completely hidden, a terrifying figure lunged from the shadows, meaning he was about to be attacked.",
+    },
+    "Losing Something Important": {
+        "conflict": "Man vs Self or Society",
+        "s1": "Out of nowhere, things took a terrible turn when [Character Name] nervously checked his pockets.",
+        "s2": "He stumbled over his words and paced back and forth, feeling tears welling up in his eyes.",
+        "s3": "While he frantically searched his bag, he realised his most important possession was missing and he was going to be in huge trouble.",
+    },
+    "Trap / Kidnapping": {
+        "conflict": "Man vs Man",
+        "s1": "In the blink of an eye, the heavy door slammed shut as [Character Name] stepped inside the room.",
+        "s2": "His eyes popped out of his head, and his knees were shaking like rubber.",
+        "s3": "Although he pushed with all his might, the lock clicked from the outside, trapping him right before he could escape.",
+    },
+    "Being Left Out": {
+        "conflict": "Man vs Society",
+        "s1": "Without warning, the familiar sounds of laughter faded as [Character Name] stood in the doorway of the crowded classroom.",
+        "s2": "Shifting his weight in the corner, he felt like a fish out of water, wishing he was back home.",
+        "s3": "Even though he waited for someone to invite him over, all the teams were already picked and he realised he had no one to sit with.",
+    },
+}
+
+CONFLICT_TYPES = ("Man vs Man", "Man vs Nature", "Man vs Society",
+                  "Man vs Supernatural", "Man vs Technology", "Man vs Self")
 
 SUBGENRE_ICONS = {
     "Instructional Writing": "🧰",
@@ -326,100 +595,1229 @@ FICTION_BLOCKS = (
 )
 
 BLOCKS_BY_SUBGENRE = {
-    "Adventure": FICTION_BLOCKS,
-    "Fantasy": FICTION_BLOCKS,
-    "Realistic Fiction": FICTION_BLOCKS,
-    "Universal Blueprint": FICTION_BLOCKS,
-    "Non-chronological Report": (
-        "Block 1: Headline",
-        "Block 2: Introduction",
-        "Block 3: Body Paragraphs",
-        "Block 4: Conclusion",
-    ),
-    "Diary": (
-        "Block 1: Date & Opening Thoughts",
-        "Block 2: What Happened",
-        "Block 3: Feelings & Reactions",
-        "Block 4: Looking Ahead",
-    ),
-    "Friendly Letter": (
-        "Block 1: Greeting & Opening",
-        "Block 2: Your News",
-        "Block 3: Questions & Feelings",
-        "Block 4: Closing & Sign-off",
-    ),
-    "Formal Letter": (
-        "Block 1: Greeting & Purpose",
-        "Block 2: Main Details",
-        "Block 3: Request / Action Needed",
-        "Block 4: Polite Closing",
-    ),
-    "News Report": (
-        "Block 1: Headline & Opening (Who/What/Where/When)",
-        "Block 2: Key Details",
-        "Block 3: Quotes & Witnesses",
-        "Block 4: Closing / What Happens Next",
-    ),
-    "Instructional Writing": (
-        "Block 1: Title, Goal & Equipment",
-        "Block 2: Steps (First Half)",
-        "Block 3: Steps (Second Half)",
-        "Block 4: Tips & Final Result",
-    ),
-    "Persuasive Writing": (
-        "Block 1: Opening Statement",
-        "Block 2: Main Reasons",
-        "Block 3: Evidence & Counter-points",
-        "Block 4: Strong Conclusion",
-    ),
-    "Discussion (Balanced Argument)": (
-        "Block 1: Introduce the Issue",
-        "Block 2: Arguments For",
-        "Block 3: Arguments Against",
-        "Block 4: Your Conclusion",
-    ),
+    "Non-chronological Report": ("Block 1: Headline", "Block 2: Introduction",
+                                  "Block 3: Body Paragraphs", "Block 4: Conclusion"),
+    "Explanatory Writing": ("Block 1: Headline", "Block 2: Introduction",
+                            "Block 3: Main Body", "Block 4: Conclusion"),
+    "Instructional Writing": ("Block 1: Headline", "Block 2: Introduction",
+                              "Block 3: Main Body", "Block 4: Conclusion"),
+    "News Report": ("Block 1: Headline", "Block 2: Sub-headline (optional)", "Block 3: Byline",
+                    "Block 4: Lead Paragraph", "Block 5: Main Body", "Block 6: Conclusion"),
+    "Personal Recount": ("Block 1: Title", "Block 2: Introduction",
+                         "Block 3: Main Body", "Block 4: Conclusion"),
+    "Autobiography": ("Block 1: Title", "Block 2: Introduction",
+                      "Block 3: Main Body", "Block 4: Conclusion"),
+    "Biography": ("Block 1: Title", "Block 2: Introduction",
+                  "Block 3: Main Body", "Block 4: Conclusion"),
+    "Diary": ("Block 1: Day and Date", "Block 2: Salutation", "Block 3: Introduction",
+              "Block 4: Main Body", "Block 5: Conclusion", "Block 6: Closing / Sign-Off"),
+    "Balanced Argument": ("Block 1: Headline", "Block 2: Introduction",
+                          "Block 3: Main Body", "Block 4: Conclusion"),
+    "Opinion Piece": ("Block 1: Headline", "Block 2: Introduction",
+                      "Block 3: Main Body", "Block 4: Conclusion"),
+    "Formal Letter": ("Block 1: Header (Date, Address & Greeting)", "Block 2: Introduction",
+                      "Block 3: Main Body", "Block 4: Sign-Off (Conclusion, Closing & Signature)"),
+    "Friendly Letter": ("Block 1: Header (Date, Address & Greeting)", "Block 2: Opening Paragraph",
+                        "Block 3: Main Body", "Block 4: Sign-Off (Closing, Signing Off & Name)"),
+    # Persuasive layouts
+    "Persuasive Writing::Article": ("Block 1: Headline", "Block 2: Introduction",
+                                     "Block 3: Main Body", "Block 4: Conclusion & Call to Action"),
+    "Persuasive Writing::Leaflet": ("Block 1: Eye-Catching Title", "Block 2: Introduction / Why It Matters",
+                                     "Block 3: Key Sections", "Block 4: Call to Action"),
+    "Persuasive Writing::Speech": ("Block 1: Powerful Opening", "Block 2: The Problem / Why Now",
+                                    "Block 3: Main Arguments", "Block 4: Memorable Closing"),
+    "Persuasive Writing::Letter": ("Block 1: Your Address & Date", "Block 2: Recipient & Salutation",
+                                    "Block 3: Introduction & Purpose", "Block 4: Main Body",
+                                    "Block 5: Conclusion", "Block 6: Sign-Off"),
+    "Persuasive Writing::Advertisement": ("Block 1: Catchy Slogan", "Block 2: The Problem (Brief)",
+                                           "Block 3: The Solution", "Block 4: Final Call to Action"),
+    # Fiction — universal 5-block story arc
+    "Adventure": ("Block 1: Exposition", "Block 2: Rising Action", "Block 3: Climax",
+                  "Block 4: Falling Action", "Block 5: Resolution"),
+    "Fantasy": ("Block 1: Exposition", "Block 2: Rising Action", "Block 3: Climax",
+                "Block 4: Falling Action", "Block 5: Resolution"),
+    "Realistic Fiction": ("Block 1: Exposition", "Block 2: Rising Action", "Block 3: Climax",
+                          "Block 4: Falling Action", "Block 5: Resolution"),
+    "Universal Blueprint": ("Block 1: Exposition", "Block 2: Rising Action", "Block 3: Climax",
+                            "Block 4: Falling Action", "Block 5: Resolution"),
+    "Describing a Setting": ("Block 1: Wide Shot", "Block 2: Zoom In", "Block 3: Mood Reveal"),
+    "Describing a Character": ("Block 1: First Impression", "Block 2: STEAL in Detail", "Block 3: Reveal"),
+    "Writing Dialogue": ("Block 1: Scene Setting", "Block 2: The Exchange", "Block 3: Aftermath"),
 }
 
 # ------------------------------------------------------------------
 # Genre features + block checklists (student-facing, plain language)
 # ------------------------------------------------------------------
 GENRE_FEATURES = {
-    "Non-chronological Report": (
-        "Write about real facts and true information.",
-        "Use the present tense for facts about the topic today.",
-        "Use the past tense when you talk about history or research.",
-        "Keep a formal, grown-up voice throughout.",
-        "Write in the third person (use he, she, it, they - not 'I' or 'you').",
-        "Use technical words, and explain any tricky ones in brackets.",
-        "Mix short and long sentences. Join ideas with 'and', 'but', 'because', 'which'.",
-        "Add relative clauses (with 'which', 'who', 'that') to give extra detail.",
-        "Include numbers or statistics to support your facts.",
-        "Add a glossary at the end if you used technical words.",
-    ),
+    "Non-chronological Report": {
+        "lower": (
+            "Write about real facts and true information.",
+            "Use the present tense for facts about the topic today.",
+            "Use the past tense when you talk about history or research.",
+            "Keep a formal, grown-up voice throughout.",
+            "Write in the third person (he, she, it, they - not 'I' or 'you').",
+            "Use technical words, and explain any tricky ones in brackets.",
+            "Mix short and long sentences. Join ideas with 'and', 'but', 'because', 'which'.",
+            "Add relative clauses (with 'which', 'who', 'that') to give extra detail.",
+            "Include numbers or statistics to support your facts.",
+            "Add a glossary at the end if you used technical words.",
+        ),
+        "upper": (
+            "Establish a clear, informative purpose: to explain a subject factually.",
+            "Maintain a consistent third-person register throughout.",
+            "Use the present tense for ongoing facts; past tense for historical events.",
+            "Deploy technical vocabulary with precision, defining specialised terms in brackets or glossary.",
+            "Vary sentence construction: simple, compound and complex.",
+            "Embed relative clauses (which, who, whose, that) for detail without losing clarity.",
+            "Use subordinating conjunctions (because, although, whereas, since) to establish cause and contrast.",
+            "Support key claims with statistics, examples or evidence.",
+            "Sustain a formal, authoritative tone.",
+            "Use organisational devices (subheadings, bullets, numbered lists) purposefully.",
+            "Include a glossary of technical terms if specialist vocabulary used.",
+        ),
+    },
+    "Explanatory Writing": {
+        "lower": (
+            "Write about a real process or idea, using true facts.",
+            "Use the present tense most of the time. Past tense only for things that started in the past.",
+            "Keep a formal voice - no jokes, no personal opinions.",
+            "Write in the third person (it, they, this - not 'I' or 'you').",
+            "Use technical words, and explain tricky ones in brackets.",
+            "Include dates when they help show the stages of a process.",
+            "Keep sentences clear and precise so the reader understands easily.",
+            "Give examples to make tricky ideas easier to follow.",
+        ),
+        "upper": (
+            "Support the explanation with accurate, verified facts.",
+            "Maintain present tense for general truths; past tense for developments that began in the past.",
+            "Sustain a formal, objective register.",
+            "Write in the third person throughout (it, they, this, these).",
+            "Deploy subject-specific technical vocabulary, defining specialised terms.",
+            "Include dates where relevant to mark stages or show development.",
+            "Use precise, unambiguous language; prioritise clarity.",
+            "Provide concrete examples to clarify abstract ideas.",
+            "Vary sentence construction - simple, compound, complex, with relative clauses.",
+        ),
+    },
+    "Instructional Writing": {
+        "lower": (
+            "Give instructions in the present tense.",
+            "Use command verbs at the start of each step (mix, cut, pour, press).",
+            "Talk directly to the reader using 'you'.",
+            "Keep each step short, simple and easy to follow.",
+            "Use precise words to describe actions, tools and materials.",
+            "Use short, clear sentences so nothing gets confusing.",
+            "Use adverbs when they help (carefully, slowly, gently).",
+            "Leave out anything that is not needed.",
+        ),
+        "upper": (
+            "Sustain the imperative mood: command verbs at the start of each step.",
+            "Maintain present tense across all instructions.",
+            "Address the reader directly in the second person ('you').",
+            "Use clear, economical language; every word should serve the instruction.",
+            "Choose precise vocabulary for actions, tools and materials.",
+            "Prefer short, direct sentences to reduce ambiguity.",
+            "Deploy adverbs purposefully (carefully, slowly, gently).",
+            "Omit unnecessary detail; keep each instruction focused.",
+            "Maintain a consistent, professional instructional register.",
+        ),
+    },
+    "News Report": {
+        "lower": (
+            "Write in a formal, factual way.",
+            "Only include true, accurate facts about the event.",
+            "Mostly use the third person (they, he, she). Use 'I' only if you were part of the event.",
+            "Use the past tense because the event has already happened. Present tense in conclusion.",
+            "Tell the reader what happened, who was involved, where and when.",
+            "Use the passive voice when it helps (e.g. 'awards were given').",
+            "Include quotes from people who were there.",
+            "Use reporting verbs like said, explained, announced.",
+            "Use time connectives (first, later, finally) to show the order.",
+            "Keep sentences short and clear. No exaggerating or personal opinions.",
+        ),
+        "upper": (
+            "Maintain a formal, factual register appropriate to journalistic writing.",
+            "Report only accurate, verifiable facts; avoid speculation or embellishment.",
+            "Use third person throughout; first person permissible only if reporter is participant.",
+            "Anchor the report in past tense; present tense in conclusion for ongoing situations.",
+            "Foreground the five Ws (who, what, when, where, why) in the lead paragraph.",
+            "Use passive voice judiciously to foreground the event.",
+            "Incorporate direct quotations from eyewitnesses or participants.",
+            "Select reporting verbs precisely (stated, explained, confirmed, announced).",
+            "Use time connectives (first, later, meanwhile, subsequently) to establish sequence.",
+            "Prefer concise, declarative sentences; avoid narrative flourishes.",
+            "Sustain an objective, informative tone - no personal opinions or exaggerated emotion.",
+            "Apply inverted pyramid structure: most significant information first.",
+        ),
+    },
+    "Personal Recount": {
+        "lower": (
+            "Write in a clear, personal style. It is okay to sound like you.",
+            "Describe real things you have done or experienced.",
+            "Use 'I' and 'we' to tell your story.",
+            "Write in the past tense - the events have already happened.",
+            "Share how you felt (excited, nervous, happy) and what you thought.",
+            "Tell events in the order they happened.",
+            "Use time words like 'first', 'then', 'after that', 'finally'.",
+            "Add sensory details - what you saw, heard, touched, tasted, smelled.",
+            "Use describing words to make the experience come alive.",
+            "Focus on your experience, not just facts.",
+            "Pick the right voice: chatty for a blog, more careful for a school website.",
+            "Include real details so the reader can picture it.",
+            "Do not make things up - keep it believable.",
+        ),
+        "upper": (
+            "Adopt a clear, personal voice - the writer's experience is the story.",
+            "Recount real, lived events; avoid fictional embellishment.",
+            "Use the first person consistently (I, we, my, our).",
+            "Anchor in past tense; shift to present or future only in concluding reflection.",
+            "Integrate thoughts and feelings throughout for emotional depth.",
+            "Structure chronologically - each paragraph follows the sequence.",
+            "Deploy temporal connectives (first, subsequently, after that, at last).",
+            "Enrich with sensory description (sight, sound, touch, taste, smell) and precise detail.",
+            "Select descriptive vocabulary that evokes experience.",
+            "Focus on the writer's experience, not just facts - show significance.",
+            "Calibrate register: conversational for a blog, semi-formal for school website.",
+            "Sustain a believable, realistic account.",
+            "Balance narrative with reflection - what happened and what it meant.",
+        ),
+    },
+    "Autobiography": {
+        "lower": (
+            "Write in a clear, personal style. It is okay to sound like you.",
+            "Write about real events from your life.",
+            "Use 'I' to tell your story.",
+            "Write in the past tense - the events have already happened.",
+            "Tell events in the order they happened.",
+            "Use time words like 'when I was young', 'later', 'after that', 'finally'.",
+            "Share your thoughts and feelings.",
+            "Use describing words to bring moments to life.",
+            "Focus on important moments - not every small detail.",
+            "Explain what you learned and how events changed you.",
+            "Include real details so the reader believes it.",
+            "Choose the right voice for your audience.",
+            "Keep it truthful - no made-up events.",
+            "Look back and think about what those events meant.",
+        ),
+        "upper": (
+            "Adopt a clear, personal, reflective voice appropriate to audience and purpose.",
+            "Recount genuine events, stages and turning points.",
+            "Sustain first person throughout (I, my, we).",
+            "Anchor in past tense, shifting only to present/future for reflection and hopes.",
+            "Structure chronologically, from earlier experiences to later ones.",
+            "Deploy temporal connectives (when I was young, subsequently, eventually).",
+            "Integrate personal thoughts, feelings and reflections throughout.",
+            "Use precise descriptive language to illuminate significant moments.",
+            "Prioritise significant events, challenges and turning points.",
+            "Explain how key events shaped your life and what you learned.",
+            "Select specific, concrete details for vividness and credibility.",
+            "Calibrate register: simple for school project, detailed for magazine/blog.",
+            "Sustain a reflective tone: look back on events and articulate importance.",
+            "Avoid fictional or exaggerated events.",
+        ),
+    },
+    "Biography": {
+        "lower": (
+            "Write in a clear, factual, informative way.",
+            "Describe real events and true facts about the person's life.",
+            "Use the third person (he, she, they) - not 'I' or 'you'.",
+            "Write in the past tense - the events have already happened.",
+            "Tell events in the order they happened.",
+            "Use time words like 'first', 'later', 'after that', 'finally'.",
+            "Include specific facts: dates, places, achievements and important events.",
+            "Use mostly formal language.",
+            "Focus on important life events, achievements and challenges.",
+            "Use describing words to bring the person's life to life.",
+            "Explain how the person helped or influenced others.",
+            "Do not add personal opinions unless you can back them up with facts.",
+            "Keep every fact accurate and realistic.",
+        ),
+        "upper": (
+            "Sustain a clear, factual, informative register.",
+            "Report only accurate, verifiable facts.",
+            "Maintain third person consistently (he, she, they).",
+            "Anchor in past tense; shift to present only where describing legacy or ongoing impact.",
+            "Structure chronologically, from early life to legacy.",
+            "Deploy temporal connectives (first, subsequently, eventually, in later years).",
+            "Ground in specific factual details: dates, places, achievements, pivotal events.",
+            "Sustain a formal or semi-formal register appropriate to audience and purpose.",
+            "Prioritise significant events, achievements and contributions.",
+            "Select descriptive but objective language - engaging without becoming emotive.",
+            "Explain the subject's impact and influence on others.",
+            "Avoid unsupported personal opinion; ground evaluation in evidence.",
+            "Verify accuracy throughout; avoid speculation or embellishment.",
+        ),
+    },
+    "Diary": {
+        "lower": (
+            "Write in a personal, expressive way - like you are talking to yourself.",
+            "Describe real or imagined events from the day (or a period of time).",
+            "Use 'I' to tell your story.",
+            "Write in the past tense - you are usually remembering what happened.",
+            "Share your thoughts, feelings, reactions and opinions.",
+            "Be honest about how events affected you.",
+            "Tell events in the order they happened.",
+            "Use time words like 'first', 'later', 'after that', 'then', 'finally'.",
+            "Use emotive words to show how you felt.",
+            "Use describing words to make events vivid.",
+            "Include details about what happened, who was involved and where.",
+            "Use an informal, chatty tone - it is a diary, not a report.",
+            "You can use questions, exclamations and personal comments.",
+            "Focus on both what happened and how you responded to it.",
+            "Keep it believable, even if it is imagined.",
+        ),
+        "upper": (
+            "Adopt a personal, expressive voice - the diary is a private, first-person record.",
+            "Recount real or imagined events from a day (or period of time).",
+            "Sustain first person throughout (I, my, we).",
+            "Anchor in past tense; shift to present/future only in concluding reflection.",
+            "Integrate thoughts, feelings, reactions and opinions.",
+            "Show honest reflection: explain how events affected you and why they mattered.",
+            "Structure chronologically.",
+            "Deploy temporal connectives (first, later, subsequently, eventually).",
+            "Use emotive vocabulary precisely.",
+            "Employ descriptive language to evoke setting, action and mood.",
+            "Include specific detail - who, what, where - to ground the entry.",
+            "Sustain an informal, conversational register.",
+            "Use rhetorical questions, exclamations and personal asides naturally.",
+            "Balance narrative and reflection.",
+            "Sustain a believable, realistic tone, even for imagined perspectives.",
+        ),
+    },
+    "Balanced Argument": {
+        "lower": (
+            "Use formal language. No slang, no contractions, no emotional words.",
+            "Write in the present tense.",
+            "Stay balanced and neutral - do not show which side you agree with.",
+            "Use the third person (many people believe... - not 'I think').",
+            "Give both sides equal attention - same number of paragraphs, same detail.",
+            "Support each point with reasons, facts or examples.",
+            "Use linking words (firstly, furthermore, however, on the other hand).",
+            "Use careful words like 'may', 'might', 'could', 'often', 'in some cases'.",
+            "Use topic words that fit the issue.",
+            "Do not use 'I believe' or 'In my opinion' in the main body.",
+        ),
+        "upper": (
+            "Sustain a formal, objective register: no slang, contractions or emotive language.",
+            "Write in the present tense.",
+            "Maintain a balanced, neutral tone - each side presented with equal weight.",
+            "Deploy third person consistently.",
+            "Present both viewpoints with equal treatment.",
+            "Support every point with reasons, evidence, examples, statistics or expert opinion.",
+            "Deploy connectives: addition (furthermore, moreover), contrast (however, on the other hand), conclusion (in conclusion).",
+            "Use cautious, measured language (may, might, could, often).",
+            "Employ topic-specific vocabulary accurately.",
+            "Reserve personal opinion for the conclusion - if offered, framed carefully.",
+            "Avoid 'I believe' and 'In my opinion' in the main body.",
+        ),
+    },
+    "Opinion Piece": {
+        "lower": (
+            "Use clear, confident words to share your viewpoint.",
+            "State your opinion clearly ('I believe...', 'In my opinion...').",
+            "Keep a formal or semi-formal tone.",
+            "Use 'I', 'my', 'me' for opinions; 'they', 'people' for others.",
+            "Use present tense for opinions, future for outcomes, past only for examples.",
+            "Support your opinion with reasons, explanations, examples, facts or evidence.",
+            "Use linking words (Firstly, Furthermore, In addition, For example, Therefore).",
+            "Use strong words (clearly, undoubtedly, should, must, could).",
+            "Use topic words that fit the issue.",
+            "Acknowledge other viewpoints before you reinforce your own opinion.",
+            "You may use a rhetorical question now and then to engage the reader.",
+        ),
+        "upper": (
+            "Sustain a clear, confident voice that commits to a position.",
+            "State your viewpoint explicitly using first-person markers.",
+            "Calibrate register to audience and intended publication.",
+            "Deploy first person for opinion; third person for evidence from others.",
+            "Anchor in present tense; future for predicted outcomes; past for examples.",
+            "Substantiate every claim with reasons, examples, statistics or expert opinion.",
+            "Structure with connectives: addition, exemplification, causation.",
+            "Deploy modal verbs and adverbs of certainty purposefully.",
+            "Employ topic-specific vocabulary accurately.",
+            "Acknowledge alternative viewpoints before refuting them.",
+            "Use rhetorical questions sparingly.",
+            "Avoid vagueness: each paragraph advances the position with precision.",
+        ),
+    },
+    "Formal Letter": {
+        "lower": (
+            "Use a formal, respectful tone. No slang or casual words.",
+            "Use the first person ('I am writing to...', 'I would like to...').",
+            "Use the passive voice sometimes ('It has been observed that...').",
+            "Use clear, precise language so your message is easy to understand.",
+            "Write in complete, correct sentences.",
+            "Choose vocabulary that fits your purpose.",
+            "Use polite expressions ('I would appreciate it if...', 'I kindly request...').",
+            "Use formal linking words (furthermore, however, therefore).",
+            "Support your opinions with reasons or examples.",
+            "End with a polite closing statement.",
+        ),
+        "upper": (
+            "Sustain a formal, respectful register: no slang, contractions or casual phrasing.",
+            "Use the first person purposefully to signal purpose, request or position.",
+            "Deploy the passive voice where it enhances formality and objectivity.",
+            "Use precise, unambiguous language; every sentence should serve your purpose.",
+            "Write in complete, grammatically controlled sentences.",
+            "Select vocabulary calibrated to your purpose - requesting, explaining, complaining, persuading or thanking.",
+            "Use polite, considered formulations when making requests or raising concerns.",
+            "Use formal connectives (furthermore, however, in addition, therefore, consequently).",
+            "Support every claim with clear reasoning or relevant example.",
+            "Close with a courteous, professional statement.",
+            "Sustain a consistent register from opening to signature.",
+        ),
+    },
+    "Friendly Letter": {
+        "lower": (
+            "Write in a friendly, relaxed way - like you are chatting to a friend.",
+            "Use 'I', 'me', 'my', 'we' throughout.",
+            "You can use contractions ('I'm', 'don't', 'can't', 'it's').",
+            "Use informal words ('really', 'great', 'amazing', 'a bit', 'lovely').",
+            "Friendly expressions are welcome ('Guess what!').",
+            "Use expressive language ('I was so excited...').",
+            "Ask conversational questions ('How are you?').",
+            "Mix up your sentences - short, long and exclamatory.",
+            "Use simple linking words (first, then, also, but).",
+            "Keep a personal, engaging tone throughout.",
+            "End with a warm, personal closing ('Write back soon!', 'Take care!').",
+        ),
+        "upper": (
+            "Sustain a warm, relaxed, conversational register.",
+            "Use the first person throughout.",
+            "Deploy contractions freely - they are a feature of the informal voice.",
+            "Use informal vocabulary and expressions purposefully.",
+            "Include colloquial phrases where they feel natural.",
+            "Use emotive and expressive language to convey feeling authentically.",
+            "Ask conversational or rhetorical questions to engage the reader.",
+            "Vary sentence length and type deliberately.",
+            "Use simple, natural connectives (then, and, but, so).",
+            "Maintain a consistently personal, engaging tone.",
+            "Close with a warm, personal sign-off calibrated to your relationship with the recipient.",
+        ),
+    },
 }
 
 BLOCK_CHECKLISTS = {
     "Non-chronological Report": {
-        "Block 1: Headline": (
-            "My headline tells the reader what the report is about.",
-            "My headline is clear and interesting.",
+        "lower": {
+            "Block 1: Headline": ("My headline tells the reader what the report is about.",
+                                    "My headline is clear and interesting."),
+            "Block 2: Introduction": ("I introduced the main subject in one paragraph.",
+                                        "I gave background information so the reader understands the topic."),
+            "Block 3: Body Paragraphs": ("I organised information into at least three paragraphs.",
+                                            "Each paragraph focuses on one specific aspect or subtopic.",
+                                            "I grouped information by theme or idea - not in time order.",
+                                            "I used subheadings to help organise ideas."),
+            "Block 4: Conclusion": ("I wrote a final paragraph that summarises the key points.",
+                                      "I did not introduce any new information in the conclusion."),
+        },
+        "upper": {
+            "Block 1: Headline": ("My headline is informative, concise and signals the subject.",
+                                    "My headline is engaging without sensationalism."),
+            "Block 2: Introduction": ("I defined the report's subject in a single, cohesive paragraph.",
+                                        "I provided contextual background that orients the reader."),
+            "Block 3: Body Paragraphs": ("I organised content into three or more paragraphs, each dedicated to a distinct sub-topic.",
+                                            "Each paragraph is unified by a topic sentence and developed with supporting detail.",
+                                            "I grouped information thematically rather than chronologically.",
+                                            "I used subheadings to signpost sections.",
+                                            "I embedded technical vocabulary, defining specialised terms.",
+                                            "I integrated at least one relative clause and one subordinating conjunction."),
+            "Block 4: Conclusion": ("I wrote a concluding paragraph that synthesises key points without repetition.",
+                                      "I avoided introducing new content in the conclusion.",
+                                      "I included a glossary if technical terms were used."),
+        },
+    },
+    "Explanatory Writing": {
+        "lower": {
+            "Block 1: Headline": ("My headline tells the reader what process or idea I am explaining.",
+                                    "My headline is clear and simple."),
+            "Block 2: Introduction": ("I said what the piece will be about.",
+                                        "I gave some background information."),
+            "Block 3: Main Body": ("I wrote three body paragraphs.",
+                                     "I used subheadings to organise each part.",
+                                     "I put the steps in a logical order.",
+                                     "I used words like 'first', 'then', 'next', 'afterwards'.",
+                                     "I used different types of sentences."),
+            "Block 4: Conclusion": ("I summarised the main idea or process in one short paragraph.",
+                                      "I did not add anything new in the conclusion."),
+        },
+        "upper": {
+            "Block 1: Headline": ("My headline clearly signals the process or concept being explained.",
+                                    "My headline is precise, not sensationalised."),
+            "Block 2: Introduction": ("I defined the topic and stated what the explanation will cover.",
+                                        "I provided background so the reader is oriented."),
+            "Block 3: Main Body": ("I organised into three or more unified paragraphs.",
+                                     "I used subheadings to signpost each stage.",
+                                     "I sequenced ideas logically and chronologically.",
+                                     "I deployed sequential connectives (firstly, subsequently).",
+                                     "I used varied sentence structures including relative clauses.",
+                                     "I integrated at least one example to clarify an idea."),
+            "Block 4: Conclusion": ("I summarised the main idea concisely.",
+                                      "I did not introduce new information."),
+        },
+    },
+    "Instructional Writing": {
+        "lower": {
+            "Block 1: Headline": ("My headline shows what the instructions are for.",
+                                    "My headline is clear and interesting."),
+            "Block 2: Introduction": ("I stated what the instructions will help the reader do.",
+                                        "I explained why the task is useful."),
+            "Block 3: Main Body": ("I listed the tools or materials needed first.",
+                                     "I used bullet points or numbers for the steps.",
+                                     "I put the steps in the right order.",
+                                     "I used words like 'first', 'then', 'next'.",
+                                     "I used command verbs at the start of each step.",
+                                     "I wrote any safety tips clearly.",
+                                     "I added an 'if...then...' tip for troubleshooting."),
+            "Block 4: Conclusion": ("I reminded the reader what they should end up with.",
+                                      "I did not add any new steps in the conclusion."),
+        },
+        "upper": {
+            "Block 1: Headline": ("My headline communicates the purpose clearly and concisely.",
+                                    "My headline is engaging - it signals the reader's achievement."),
+            "Block 2: Introduction": ("I stated the purpose precisely.",
+                                        "I explained why the task is useful.",
+                                        "I outlined what the reader will achieve."),
+            "Block 3: Main Body": ("I listed all tools and materials before the reader begins.",
+                                     "I organised steps into clear paragraphs with subheadings.",
+                                     "I used numbered or bulleted lists unambiguously.",
+                                     "I broke the process into clear, sequential stages.",
+                                     "I deployed sequential connectives.",
+                                     "I began each step with an imperative verb in present tense.",
+                                     "I highlighted safety precautions clearly.",
+                                     "I included at least one troubleshooting tip using an 'if...then...' conditional.",
+                                     "I kept each instruction short, precise and free of unnecessary detail."),
+            "Block 4: Conclusion": ("I summarised the purpose concisely.",
+                                      "I reminded the reader of the final outcome.",
+                                      "I did not introduce new steps or materials."),
+        },
+    },
+    "News Report": {
+        "lower": {
+            "Block 1: Headline": ("My headline grabs attention but stays truthful.",
+                                    "My headline tells the reader what the report is about.",
+                                    "I used powerful words or alliteration."),
+            "Block 2: Sub-headline (optional)": ("I added a sub-headline that gives extra information (optional).",
+                                                    "My sub-headline explains the headline more clearly."),
+            "Block 3: Byline": ("I wrote my name as the reporter.",),
+            "Block 4: Lead Paragraph": ("I summarised the event in one short paragraph.",
+                                          "I put the most important information first.",
+                                          "I answered who, what, when, where and why."),
+            "Block 5: Main Body": ("I organised my report into clear paragraphs.",
+                                     "I put the most important facts first, then added more detail.",
+                                     "I told the events in a clear order.",
+                                     "Each paragraph focuses on a different part of the event.",
+                                     "I included facts, explanations and quotes.",
+                                     "I used connectives like 'then', 'later', 'meanwhile'."),
+            "Block 6: Conclusion": ("I ended with a short paragraph that summarises the main points.",
+                                      "I mentioned what might happen next.",
+                                      "I did not introduce any new facts or opinions."),
+        },
+        "upper": {
+            "Block 1: Headline": ("My headline is clear, engaging and signals the subject.",
+                                    "I used a rhetorical technique without distorting facts.",
+                                    "My headline conforms to journalistic convention."),
+            "Block 2: Sub-headline (optional)": ("I included a sub-headline that expands the headline with a supplementary fact.",
+                                                    "My sub-headline adds new information."),
+            "Block 3: Byline": ("I included a byline naming the reporter.",
+                                  "My byline is positioned below the headline."),
+            "Block 4: Lead Paragraph": ("I opened with a single, focused paragraph summarising the event.",
+                                          "I foregrounded the most significant information.",
+                                          "I answered the five Ws.",
+                                          "My lead hooks the reader without sensationalism."),
+            "Block 5: Main Body": ("I organised the main body into clear paragraphs, each dedicated to a distinct aspect.",
+                                     "I applied the inverted pyramid structure.",
+                                     "I presented events in logical (often chronological) order.",
+                                     "Each paragraph is unified by a topic sentence.",
+                                     "I incorporated facts, explanations and direct quotations.",
+                                     "I used temporal connectives (meanwhile, subsequently, later, however).",
+                                     "I deployed the passive voice where it foregrounds the event.",
+                                     "I selected reporting verbs precisely to match each speaker."),
+            "Block 6: Conclusion": ("I closed with a concise paragraph synthesising key points.",
+                                      "I referred to ongoing situations or upcoming events.",
+                                      "I did not introduce new factual content or personal opinion."),
+        },
+    },
+    "Personal Recount": {
+        "lower": {
+            "Block 1: Title": ("My title tells the reader what my recount is about.",
+                                 "My title makes the reader want to read on."),
+            "Block 2: Introduction": ("I introduced the event in a short paragraph.",
+                                        "I said where and when it happened.",
+                                        "I mentioned who was involved."),
+            "Block 3: Main Body": ("I organised my recount into clear paragraphs.",
+                                     "I described events step by step.",
+                                     "I included what I did, what happened and how I reacted.",
+                                     "I described the highlight in detail.",
+                                     "I explained why the highlight stood out.",
+                                     "I shared my thoughts and feelings throughout.",
+                                     "I used time words to link events.",
+                                     "I added sensory details."),
+            "Block 4: Conclusion": ("I ended with a short paragraph reflecting on the experience.",
+                                      "I explained what I enjoyed, learned or found memorable.",
+                                      "I said how I felt at the end."),
+        },
+        "upper": {
+            "Block 1: Title": ("My title clearly signals the experience being recounted.",
+                                 "My title is engaging without misleading."),
+            "Block 2: Introduction": ("I opened with a focused paragraph introducing the event.",
+                                        "I established where and when it took place.",
+                                        "I introduced the people involved.",
+                                        "I established the tone appropriate to the audience."),
+            "Block 3: Main Body": ("I organised the recount into clear paragraphs following chronology.",
+                                     "I described events step-by-step without jumping.",
+                                     "Each paragraph is developed with action, experience and reaction.",
+                                     "I described the highlight in detail.",
+                                     "I explained why that moment stood out.",
+                                     "I wove personal thoughts and feelings throughout.",
+                                     "I used temporal connectives (first, subsequently, at last).",
+                                     "I enriched with sensory detail and precise description.",
+                                     "I maintained a believable, realistic account."),
+            "Block 4: Conclusion": ("I closed with a short paragraph reflecting on the experience.",
+                                      "I explained what I enjoyed, learned or found memorable.",
+                                      "I described how I felt at the end.",
+                                      "My conclusion reflects without introducing new events."),
+        },
+    },
+    "Autobiography": {
+        "lower": {
+            "Block 1: Title": ("My title tells the reader whose life story this is.",
+                                 "My title is clear and fits my story."),
+            "Block 2: Introduction": ("I introduced myself clearly.",
+                                        "I said when and where I was born.",
+                                        "I gave some background about my family.",
+                                        "I gave the reader an idea of what my story will cover.",
+                                        "I set a warm, thoughtful tone."),
+            "Block 3: Main Body": ("I organised my main body into clear paragraphs, in the order things happened.",
+                                     "I used subheadings where they helped.",
+                                     "I used time words to guide the reader.",
+                                     "Childhood & Early Life: I described my childhood - where I was born, my family, early memories.",
+                                     "Growth & Development: I described my growth - school years, challenges, turning points.",
+                                     "Achievements & Important Experiences: I described achievements and important experiences.",
+                                     "I explained what I learned from important moments.",
+                                     "I shared how these experiences shaped who I am."),
+            "Block 4: Conclusion": ("I summarised the key stages of my life story.",
+                                      "I explained what I learned.",
+                                      "I said how my experiences shaped me.",
+                                      "I mentioned my hopes for the future.",
+                                      "I ended with a thoughtful final thought."),
+        },
+        "upper": {
+            "Block 1: Title": ("My title reflects the subject and scope of the autobiography.",
+                                 "My title clearly signals whose life is being told.",
+                                 "My title is well-chosen - factual or reflective."),
+            "Block 2: Introduction": ("I introduced myself and established my voice as narrator.",
+                                        "I provided contextual background: birth, family, early life.",
+                                        "I gave a rationale for why this life story is worth sharing.",
+                                        "I briefly previewed the main experiences to come.",
+                                        "I established the reflective tone."),
+            "Block 3: Main Body": ("I organised the main body chronologically.",
+                                     "I used subheadings where they aid clarity.",
+                                     "I deployed temporal connectives.",
+                                     "Childhood & Early Life: I described my birth, family, and early upbringing.",
+                                     "Childhood & Early Life: I identified formative memories, influences, early interests.",
+                                     "Growth & Development: I chronicled significant stages - school years, personal growth.",
+                                     "Growth & Development: I explained key experiences, challenges, turning points.",
+                                     "Achievements & Important Experiences: I recounted major achievements, successes, milestones.",
+                                     "Achievements & Important Experiences: I explained challenges I overcame and how they shaped me.",
+                                     "Throughout: I showed how experiences influenced my character, goals or values.",
+                                     "Throughout: I balanced narrative with reflection."),
+            "Block 4: Conclusion": ("I summarised the key stages of my life story.",
+                                      "I reflected on lessons learned.",
+                                      "I explained how experiences shaped me.",
+                                      "I mentioned my hopes for the future.",
+                                      "I closed with a thoughtful final reflection.",
+                                      "I did not introduce new life events."),
+        },
+    },
+    "Biography": {
+        "lower": {
+            "Block 1: Title": ("My title tells the reader who the biography is about.",
+                                 "My title is clear and fits the person."),
+            "Block 2: Introduction": ("I named the person.",
+                                        "I explained who they are and why they are important.",
+                                        "I gave basic background facts.",
+                                        "I briefly mentioned their main achievements.",
+                                        "I gave the reader an idea of what they will learn."),
+            "Block 3: Main Body": ("I organised my main body into clear paragraphs in chronological order.",
+                                     "I used subheadings where they helped.",
+                                     "I used time words to guide the reader.",
+                                     "Early Life: I described where and when the person was born.",
+                                     "Early Life: I explained their childhood and family background.",
+                                     "Early Life: I mentioned early interests, talents or experiences.",
+                                     "Career or Major Life Events: I explained their journey and career.",
+                                     "Career or Major Life Events: I described important events, challenges or turning points.",
+                                     "Career or Major Life Events: I showed how they developed skills and achieved success.",
+                                     "Achievements and Impact: I described major achievements.",
+                                     "Achievements and Impact: I mentioned awards, discoveries or successes.",
+                                     "Achievements and Impact: I explained how they influenced others."),
+            "Block 4: Conclusion": ("I summarised the person's life and achievements.",
+                                      "I highlighted their lasting impact.",
+                                      "I explained what readers can learn from their life.",
+                                      "I ended with a thoughtful comment about their legacy."),
+        },
+        "upper": {
+            "Block 1: Title": ("My title clearly identifies the biographical subject.",
+                                 "My title is informative - name, achievements, or defining aspect.",
+                                 "My title avoids sensationalism."),
+            "Block 2: Introduction": ("I introduced the subject by name and identified who they are.",
+                                        "I explained why the subject matters.",
+                                        "I provided contextual background: place and date of birth.",
+                                        "I briefly previewed their principal achievements.",
+                                        "I offered the reader a clear overview.",
+                                        "I established a formal, informative tone."),
+            "Block 3: Main Body": ("I organised the main body chronologically.",
+                                     "I used subheadings where they aid clarity.",
+                                     "I deployed temporal connectives (first, subsequently, in later years).",
+                                     "Early Life: I established where and when the subject was born.",
+                                     "Early Life: I described their childhood and family background.",
+                                     "Early Life: I identified early interests, talents or formative experiences.",
+                                     "Career or Major Life Events: I traced development or career trajectory.",
+                                     "Career or Major Life Events: I described key events, challenges, turning points.",
+                                     "Career or Major Life Events: I showed how they developed skills or achieved success.",
+                                     "Achievements and Impact: I detailed major achievements.",
+                                     "Achievements and Impact: I referenced specific awards or successes.",
+                                     "Achievements and Impact: I explained how their work influenced others.",
+                                     "Throughout: I sustained a factual, objective register."),
+            "Block 4: Conclusion": ("I summarised the subject's life and achievements.",
+                                      "I highlighted their lasting impact.",
+                                      "I explained what readers can learn from their life.",
+                                      "I closed with a thoughtful comment on the subject's legacy.",
+                                      "I introduced no new factual content."),
+        },
+    },
+    "Diary": {
+        "lower": {
+            "Block 1: Day and Date": ("I wrote the day and date at the top left.",
+                                        "My date helps the reader know when the events happened."),
+            "Block 2: Salutation": ("I started with a greeting like 'Dear Diary,'.",
+                                      "My greeting makes the entry feel personal."),
+            "Block 3: Introduction": ("I introduced the day or event in a short opening.",
+                                        "I said what happened or why the day was important.",
+                                        "I showed how I was feeling at the start."),
+            "Block 4: Main Body": ("I organised my main body into clear paragraphs, in the order things happened.",
+                                     "I used time words to show the order.",
+                                     "I included describing details and how I felt throughout.",
+                                     "Beginning of the Day: I described where events took place.",
+                                     "Beginning of the Day: I explained what was happening at the start.",
+                                     "Beginning of the Day: I introduced important people.",
+                                     "Beginning of the Day: I used describing words for setting and mood.",
+                                     "Main Events: I described the main events in detail.",
+                                     "Main Events: I explained what happened and how it unfolded.",
+                                     "Main Events: I used time words to show sequence.",
+                                     "Main Events: I shared thoughts, feelings and reactions.",
+                                     "Later Events: I described what happened later.",
+                                     "Later Events: I explained any changes in how I felt.",
+                                     "Later Events: I kept adding descriptive details and emotional reflection."),
+            "Block 5: Conclusion": ("I ended with a reflective paragraph summarising my day.",
+                                      "I explained how I felt after everything happened.",
+                                      "I mentioned any lessons or reflections.",
+                                      "My ending gave the entry a clear sense of closure."),
+            "Block 6: Closing / Sign-Off": ("I ended with a simple sign-off (Goodnight, Until tomorrow).",
+                                              "My sign-off matches the tone of my diary entry."),
+        },
+        "upper": {
+            "Block 1: Day and Date": ("I placed the day and date at top-left following convention.",
+                                        "My date anchors the entry in time and grounds it in lived experience."),
+            "Block 2: Salutation": ("I opened with a direct address to the diary.",
+                                      "My salutation establishes the intimate, reflective register."),
+            "Block 3: Introduction": ("I opened with a focused paragraph introducing the day or event.",
+                                        "I signalled what happened or why the day was significant.",
+                                        "I established my emotional state at the outset.",
+                                        "I gave the reader a clear sense of the entry's focus."),
+            "Block 4: Main Body": ("I organised the main body following chronological order.",
+                                     "I used temporal connectives to pace the day's progression.",
+                                     "I integrated descriptive detail and emotional response throughout.",
+                                     "I balanced narrative with reflection.",
+                                     "Beginning of the Day: I established the setting - where and when.",
+                                     "Beginning of the Day: I described the opening atmosphere.",
+                                     "Beginning of the Day: I introduced the people involved.",
+                                     "Beginning of the Day: I used sensory language to evoke mood.",
+                                     "Main Events: I described the day's central events in detail.",
+                                     "Main Events: I showed how events unfolded using temporal connectives.",
+                                     "Main Events: I integrated thoughts, feelings and reactions as events developed.",
+                                     "Later Events: I described subsequent events or changes of scene.",
+                                     "Later Events: I traced any shift in my emotional state or perspective.",
+                                     "Later Events: I sustained descriptive detail and reflective commentary."),
+            "Block 5: Conclusion": ("I closed with a reflective paragraph summarising the day.",
+                                      "I articulated how I felt once events had concluded.",
+                                      "I drew out a lesson, thought for the future or personal insight.",
+                                      "My conclusion brings the entry to a reflective close."),
+            "Block 6: Closing / Sign-Off": ("I ended with a sign-off appropriate to the diary form.",
+                                              "My sign-off reinforces the intimate, personal voice."),
+        },
+    },
+    "Balanced Argument": {
+        "lower": {
+            "Block 1: Headline": ("My headline tells the reader the topic being discussed.",
+                                    "My headline does not reveal which side is better."),
+            "Block 2: Introduction": ("I introduced the topic clearly.",
+                                        "I gave some background information.",
+                                        "I set the stage for the discussion.",
+                                        "I showed that both sides will be presented equally.",
+                                        "I included a neutral thesis statement."),
+            "Block 3: Main Body": ("I organised the main body into four clear paragraphs.",
+                                     "I used subheadings if they helped.",
+                                     "Argument For: I presented the first supporting viewpoint.",
+                                     "Argument For: I explained why some people support this side.",
+                                     "Argument For: I included reasons, evidence or examples.",
+                                     "Develop the Argument For: I added more supporting points.",
+                                     "Develop the Argument For: I included more evidence.",
+                                     "Develop the Argument For: I used words like 'furthermore', 'in addition'.",
+                                     "Argument Against: I introduced the opposing viewpoint.",
+                                     "Argument Against: I explained why some people disagree.",
+                                     "Argument Against: I included reasons, evidence or examples.",
+                                     "Argument Against: I used contrast words ('however', 'on the other hand').",
+                                     "Develop the Argument Against: I added more evidence.",
+                                     "Develop the Argument Against: I used contrast and addition words.",
+                                     "I used PEEL (Point, Evidence, Explanation, Link) in each paragraph."),
+            "Block 4: Conclusion": ("I summarised both viewpoints fairly.",
+                                      "I restated the main issue.",
+                                      "I reflected on the strongest points from each side.",
+                                      "I gave a final balanced judgement if appropriate.",
+                                      "If I shared an opinion, I wrote it carefully."),
+        },
+        "upper": {
+            "Block 1: Headline": ("My headline introduces the topic without bias.",
+                                    "My headline signals a discussion rather than taking a position."),
+            "Block 2: Introduction": ("I introduced the topic clearly and precisely.",
+                                        "I provided necessary background context.",
+                                        "I established the frame for the discussion.",
+                                        "I presented both sides as legitimate positions.",
+                                        "I articulated a neutral thesis statement."),
+            "Block 3: Main Body": ("I organised into four paragraphs - two developing each position.",
+                                     "I used subheadings where they clarified organisation.",
+                                     "Argument For: I introduced the first supporting viewpoint precisely.",
+                                     "Argument For: I explained why proponents hold this position.",
+                                     "Argument For: I supported it with reasoned evidence.",
+                                     "Argument For: I followed the PEEL structure.",
+                                     "Develop the Argument For: I extended the supporting case.",
+                                     "Develop the Argument For: I introduced further evidence.",
+                                     "Develop the Argument For: I used addition connectives.",
+                                     "Argument Against: I introduced the opposing viewpoint with equal clarity.",
+                                     "Argument Against: I explained why critics disagree.",
+                                     "Argument Against: I supported it with reasoned evidence.",
+                                     "Argument Against: I followed the PEEL structure.",
+                                     "Argument Against: I signalled the shift with contrast adverbs.",
+                                     "Develop the Argument Against: I extended the opposing case.",
+                                     "Develop the Argument Against: I combined contrast and addition connectives.",
+                                     "Throughout: I sustained a balanced, neutral register."),
+            "Block 4: Conclusion": ("I summarised both viewpoints fairly and with equal weight.",
+                                      "I restated the main issue or thesis.",
+                                      "I reflected on the strongest points from each side.",
+                                      "I offered a final balanced judgement where appropriate.",
+                                      "Where I expressed an opinion, I framed it objectively.",
+                                      "I did not introduce new arguments in the conclusion."),
+        },
+    },
+    "Opinion Piece": {
+        "lower": {
+            "Block 1: Headline": ("My headline is clear, short and grabs attention.",
+                                    "My headline shows the opinion I am expressing."),
+            "Block 2: Introduction": ("I introduced the topic briefly.",
+                                        "I stated my opinion clearly.",
+                                        "I set the tone and hooked the reader."),
+            "Block 3: Main Body": ("I organised my main body into three clear paragraphs.",
+                                     "Strongest Argument: I presented my strongest point first.",
+                                     "Strongest Argument: I included reasons, evidence and examples.",
+                                     "Strongest Argument: I used PEEL.",
+                                     "Additional Argument: I presented a second supporting argument.",
+                                     "Additional Argument: I used different evidence.",
+                                     "Additional Argument: I used PEEL.",
+                                     "Counterargument: I introduced an opposing viewpoint.",
+                                     "Counterargument: I challenged it using evidence or reasoning.",
+                                     "Counterargument: I reinforced my own opinion.",
+                                     "Counterargument: I used PEEL.",
+                                     "I used linking words.",
+                                     "I used strong words (clearly, undoubtedly, should, must)."),
+            "Block 4: Conclusion": ("I summarised my main points.",
+                                      "I restated my opinion clearly and confidently.",
+                                      "I did not add new arguments in the conclusion."),
+        },
+        "upper": {
+            "Block 1: Headline": ("My headline is concise, engaging and signals my position.",
+                                    "My headline is persuasive without distorting."),
+            "Block 2: Introduction": ("I introduced the topic with clarity.",
+                                        "I stated my opinion explicitly using first-person markers.",
+                                        "I established the tone appropriate to my audience.",
+                                        "I engaged the reader from the opening sentence."),
+            "Block 3: Main Body": ("I organised into three logically sequenced paragraphs.",
+                                     "Strongest Argument: I opened with my most compelling point.",
+                                     "Strongest Argument: I substantiated it with reasons, evidence, examples.",
+                                     "Strongest Argument: I followed PEEL.",
+                                     "Strongest Argument: I used at least one modal verb.",
+                                     "Additional Argument: I developed a further supporting argument.",
+                                     "Additional Argument: I varied my evidence.",
+                                     "Additional Argument: I followed PEEL.",
+                                     "Additional Argument: I used an addition connective.",
+                                     "Counterargument: I acknowledged an alternative viewpoint fairly.",
+                                     "Counterargument: I challenged it using evidence or reasoning.",
+                                     "Counterargument: I reinforced my own position.",
+                                     "Counterargument: I used a contrast connective.",
+                                     "Counterargument: I followed PEEL.",
+                                     "Throughout: I used connectives purposefully."),
+            "Block 4: Conclusion": ("I summarised my main points clearly.",
+                                      "I restated my opinion confidently.",
+                                      "I did not introduce new arguments.",
+                                      "My conclusion reinforced my position without repetition."),
+        },
+    },
+    "Formal Letter": {
+        "lower": {
+            "Block 1: Header (Date, Address & Greeting)": ("I wrote the date at the top.",
+                                                             "I wrote the place below the date.",
+                                                             "I wrote an appropriate greeting.",
+                                                             "My greeting matches who I am writing to."),
+            "Block 2: Introduction": ("I began with a clear sentence stating why I am writing.",
+                                        "My reader will understand the purpose immediately.",
+                                        "My purpose fits the letter."),
+            "Block 3: Main Body": ("I organised the body into clear paragraphs.",
+                                     "The Issue: I introduced the main issue or reason.",
+                                     "Development: I explained my ideas with reasons or examples.",
+                                     "Further Details: I added extra information or suggestions.",
+                                     "I used formal linking words.",
+                                     "I used polite expressions.",
+                                     "I wrote in complete sentences."),
+            "Block 4: Sign-Off (Conclusion, Closing & Signature)": ("I summarised my main message.",
+                                                                       "I used a polite closing statement.",
+                                                                       "I wrote a suitable closing phrase.",
+                                                                       "I wrote my name below the closing phrase."),
+        },
+        "upper": {
+            "Block 1: Header (Date, Address & Greeting)": ("I wrote the date at the top-left.",
+                                                             "I wrote the place below the date on the left.",
+                                                             "I addressed the recipient with an appropriate greeting.",
+                                                             "My greeting matches the formality and status of the recipient.",
+                                                             "My greeting and closing are consistent."),
+            "Block 2: Introduction": ("I stated the purpose of my letter clearly in my opening sentence.",
+                                        "I signalled what kind of letter this is.",
+                                        "I established a formal, respectful tone."),
+            "Block 3: Main Body": ("I organised into clear paragraphs, each with a distinct purpose.",
+                                     "The Issue: I introduced the main issue with precision.",
+                                     "Development: I developed ideas with relevant explanations, reasons or examples.",
+                                     "Development: I supported my claims with evidence or reasoning.",
+                                     "Further Details: I added additional information or clarification.",
+                                     "Throughout: I used formal connectives.",
+                                     "Throughout: I used polite formulations.",
+                                     "Throughout: I sustained a consistent formal register."),
+            "Block 4: Sign-Off (Conclusion, Closing & Signature)": ("I summarised my main message or stated the action I expect.",
+                                                                       "I used a courteous closing statement.",
+                                                                       "I wrote an appropriate closing phrase.",
+                                                                       "My closing phrase matches my greeting.",
+                                                                       "I signed my name directly below the closing phrase."),
+        },
+    },
+    "Friendly Letter": {
+        "lower": {
+            "Block 1: Header (Date, Address & Greeting)": ("I wrote the date if I wanted to.",
+                                                             "I wrote the place below the date on the left.",
+                                                             "I started with a friendly greeting.",
+                                                             "My greeting sounds natural and warm."),
+            "Block 2: Opening Paragraph": ("I began in a friendly way.",
+                                             "I asked the reader how they are.",
+                                             "I reacted to their last message if there was one.",
+                                             "I introduced why I am writing."),
+            "Block 3: Main Body": ("I organised my news into clear paragraphs.",
+                                     "First News: I shared my first bit of news in a relaxed way.",
+                                     "More Details & Feelings: I added more detail and feelings.",
+                                     "More Details & Feelings: I included opinions and asked questions.",
+                                     "Final Points: I added any last news.",
+                                     "I kept the tone natural and conversational."),
+            "Block 4: Sign-Off (Closing, Signing Off & Name)": ("I ended in a warm, friendly way.",
+                                                                  "I asked the reader to reply or sent good wishes.",
+                                                                  "I used an informal closing phrase.",
+                                                                  "I wrote my first name below the closing phrase."),
+        },
+        "upper": {
+            "Block 1: Header (Date, Address & Greeting)": ("I included the date where appropriate.",
+                                                             "I wrote the place below the date.",
+                                                             "I opened with a friendly, informal greeting.",
+                                                             "My greeting sets a warm, personal tone."),
+            "Block 2: Opening Paragraph": ("I opened in a friendly, natural way.",
+                                             "I asked about the reader and showed genuine interest.",
+                                             "I acknowledged their last message.",
+                                             "I introduced the reason for my letter naturally."),
+            "Block 3: Main Body": ("I organised news into distinct paragraphs.",
+                                     "First News: I shared my main news conversationally.",
+                                     "More Details & Feelings: I developed news with additional detail and emotion.",
+                                     "More Details & Feelings: I wove in opinions, questions and reader-directed comments.",
+                                     "Final Points: I added final news, replies or questions.",
+                                     "Throughout: I sustained a conversational, relaxed register.",
+                                     "Throughout: I varied sentence length and type for natural rhythm.",
+                                     "Throughout: I used contractions and informal vocabulary."),
+            "Block 4: Sign-Off (Closing, Signing Off & Name)": ("I closed in a warm, personal way.",
+                                                                  "I summarised my message, invited a reply or sent good wishes.",
+                                                                  "I used an informal closing phrase matched to my relationship.",
+                                                                  "I signed my first name below.",
+                                                                  "My sign-off feels warm and authentic."),
+        },
+    },
+}
+
+PERSUASIVE_LOWER = {
+    "Article": {
+        "Block 1: Headline": ("My headline grabs attention.",
+                                "I used a persuasive technique."),
+        "Block 2: Introduction": ("I hooked the reader.",
+                                    "I stated my opinion clearly."),
+        "Block 3: Main Body": ("I organised my ideas into three paragraphs.",
+                                 "Strongest Argument: I started with my strongest point.",
+                                 "Strongest Argument: I supported it with evidence.",
+                                 "Second Strong Argument: I added a second argument.",
+                                 "Counterargument: I addressed the opposite viewpoint.",
+                                 "Counterargument: I showed why my argument is stronger.",
+                                 "I used linking words.",
+                                 "I used at least three DAFORESTI techniques."),
+        "Block 4: Conclusion & Call to Action": ("I summarised my main points.",
+                                                   "I restated my viewpoint powerfully.",
+                                                   "I ended with a call to action or strong statement.",
+                                                   "I left the reader ready to think or act."),
+    },
+    "Leaflet": {
+        "Block 1: Eye-Catching Title": ("My title is short, bold and grabs attention.",
+                                          "I used a persuasive technique."),
+        "Block 2: Introduction / Why It Matters": ("I explained the issue briefly.",
+                                                     "I told the reader why they should care.",
+                                                     "I used 'you' to speak directly to them."),
+        "Block 3: Key Sections": ("I organised into short, clear sections.",
+                                    "I used clear subheadings.",
+                                    "I used bullet points where they helped.",
+                                    "The Problem: I explained the problem.",
+                                    "The Solution: I described what can be done.",
+                                    "How You Can Help: I told the reader how to act.",
+                                    "I kept information concise."),
+        "Block 4: Call to Action": ("I told the reader exactly what to do next.",
+                                      "I made the message bold and memorable.",
+                                      "I ended with a strong imperative or rhetorical question."),
+    },
+    "Speech": {
+        "Block 1: Powerful Opening": ("I opened with a strong hook.",
+                                        "I addressed my audience directly."),
+        "Block 2: The Problem / Why Now": ("I explained the problem.",
+                                             "I explained why the audience should care now.",
+                                             "I used emotive language."),
+        "Block 3: Main Arguments": ("I used shorter paragraphs.",
+                                      "My Vision: I described the change I want.",
+                                      "Why It Matters: I explained why this matters.",
+                                      "What We Must Do: I told the audience what to do.",
+                                      "I repeated a key phrase for emphasis."),
+        "Block 4: Memorable Closing": ("I restated my main message.",
+                                         "I ended with a powerful final statement.",
+                                         "My ending left the audience ready to act."),
+    },
+    "Letter": {
+        "Block 1: Your Address & Date": ("I wrote my address at the top.",
+                                           "I wrote today's date under my address."),
+        "Block 2: Recipient & Salutation": ("I wrote the recipient's name.",
+                                              "I used an appropriate greeting."),
+        "Block 3: Introduction & Purpose": ("I explained why I am writing.",
+                                              "I stated my opinion politely."),
+        "Block 4: Main Body": ("I organised into clear paragraphs.",
+                                 "My Concern: I explained the problem.",
+                                 "My Proposal: I suggested what should happen.",
+                                 "The Benefits: I explained why this would help.",
+                                 "I used polite but convincing language."),
+        "Block 5: Conclusion": ("I restated my request briefly.",
+                                  "I ended positively."),
+        "Block 6: Sign-Off": ("I ended with 'Yours sincerely,' or 'Yours faithfully,'.",
+                                "I signed my name."),
+    },
+    "Advertisement": {
+        "Block 1: Catchy Slogan": ("My slogan is short, memorable and punchy.",
+                                     "I used a technique."),
+        "Block 2: The Problem (Brief)": ("I described the problem briefly.",
+                                           "I used emotive words."),
+        "Block 3: The Solution": ("I kept my writing brief and impactful.",
+                                    "What We Offer: I said what the reader gets.",
+                                    "Why You Need It: I said why they need it now.",
+                                    "What to Do: I told them exactly what to do.",
+                                    "I used slogans or catchy phrases."),
+        "Block 4: Final Call to Action": ("I ended with a strong imperative.",
+                                            "I made the final message impossible to miss."),
+    },
+}
+
+def _build_persuasive_checklist(lower_layout: dict, age: str) -> dict:
+    """If no upper version defined, use lower with expanded phrasing."""
+    return lower_layout
+
+PERSUASIVE_UPPER = {
+    layout: _build_persuasive_checklist(data, "upper")
+    for layout, data in PERSUASIVE_LOWER.items()
+}
+
+FICTION_BLOCK_CHECKLISTS = {
+    "Block 1: Exposition": {
+        "lower": (
+            "I used one of the 7 opening techniques (Dialogue, Action+Description, Description, Sound, or a stretch technique).",
+            "I showed WHERE and WHEN with specific details.",
+            "I used descriptive words and sensory details.",
+            "I described my character using at least 2 STEAL aspects.",
+            "I left a hint about what might happen next.",
         ),
-        "Block 2: Introduction": (
-            "I introduced the main subject in one paragraph.",
-            "I gave background information so the reader understands the topic.",
+        "upper": (
+            "I deployed one of the 7 opening techniques purposefully.",
+            "I established WHERE and WHEN with specific detail.",
+            "I used descriptive and sensory language to build atmosphere.",
+            "I used at least 2 STEAL aspects to characterise my protagonist.",
+            "I planted at least one hint about plot or genre.",
+            "I considered figurative language (simile, metaphor, personification).",
         ),
-        "Block 3: Body Paragraphs": (
-            "I organised information into at least three paragraphs.",
-            "Each paragraph focuses on one specific aspect or subtopic.",
-            "I grouped information by theme or idea - not in time order.",
-            "I used subheadings to help organise ideas and make information easy to find.",
+    },
+    "Block 2: Rising Action": {
+        "lower": (
+            "I introduced a conflict (Man vs Man, Nature, Society, Supernatural, Technology, or Self).",
+            "I used a problem starter from the archetypes (Getting Lost, Attack, Losing, Trap, or Being Left Out).",
+            "I showed how the character FEELS, what they DO, and what they SAY/THINK (FAT).",
+            "I introduced the problem in a complex sentence (using because, although, while).",
+            "I built tension using suspense techniques from at least 2 of the 4 categories.",
         ),
-        "Block 4: Conclusion": (
-            "I wrote a final paragraph that summarises the key points.",
-            "I did not introduce any new information in the conclusion.",
+        "upper": (
+            "I named a clear conflict type and developed it.",
+            "I deployed an archetype template or an original problem starter.",
+            "I used the FAT structure: Feeling + Action + Talk/Thought.",
+            "I introduced the problem in a complex sentence.",
+            "I built tension using suspense techniques from at least 2 categories.",
+            "I showed character development beginning (change under pressure).",
+        ),
+    },
+    "Block 3: Climax": {
+        "lower": (
+            "I used the 4S — Simile, Sound, Speech, Short sentences.",
+            "I used at least 3 suspense techniques from the 22-technique library.",
+            "I showed a TURNING POINT (confrontation or decision).",
+            "I showed CONSEQUENCES of that turning point.",
+            "I showed how the character has CHANGED.",
+        ),
+        "upper": (
+            "I deployed the full 4S structure - Simile, Sound, Speech, Short sentences.",
+            "I used at least 3 suspense techniques from the 22-technique library.",
+            "I made the turning point a major confrontation or decision.",
+            "I showed clear consequences of the turning point.",
+            "I revealed character development earned from earlier blocks.",
+            "I considered a plot twist or revelation to elevate the climax.",
+        ),
+    },
+    "Block 4: Falling Action": {
+        "lower": (
+            "I reduced the tension (slower sentences, calmer vocabulary).",
+            "I showed the consequences of the climax.",
+            "I showed what the character is thinking or feeling now.",
+            "I closed any subplots (the smaller storylines).",
+            "I prepared the reader for the ending.",
+        ),
+        "upper": (
+            "I reduced the tension - slower pace, calmer vocabulary.",
+            "I made the consequences of the climax clear.",
+            "I showed character reflection and growth.",
+            "I resolved subplots and side-storylines.",
+            "I prepared the reader for the resolution.",
+            "I avoided using fast-paced suspense techniques here.",
+        ),
+    },
+    "Block 5: Resolution": {
+        "lower": (
+            "I solved the main conflict.",
+            "My resolution connects back to the specific problem.",
+            "I showed how the character has changed.",
+            "I made the lesson or message clear (if appropriate).",
+            "I revealed any remaining mysteries or loose ends.",
+            "I used the circular ending technique if I could.",
+        ),
+        "upper": (
+            "I resolved the main conflict conclusively.",
+            "My resolution connects directly to the problem established in Block 2.",
+            "I showed clear character development - the character acts like who they've become.",
+            "I made the lesson or message clear through action or reflection, not statement.",
+            "I revealed any remaining mysteries or unanswered points.",
+            "I deployed the circular ending - return to opening location with the same adjectives, changed meaning.",
+            "I deployed FAT for the final reflection.",
         ),
     },
 }
+
+SKILL_FOCUS_CHECKLISTS = {
+    "Describing a Setting": {
+        "lower": {
+            "Block 1: Wide Shot": ("I described WHERE the place is.",
+                                     "I described WHEN (time of day, season).",
+                                     "I used one overall impression."),
+            "Block 2: Zoom In": ("I described at least 3 senses.",
+                                   "I used describing words.",
+                                   "I used a simile or metaphor."),
+            "Block 3: Mood Reveal": ("I used words that set a mood.",
+                                       "I showed how the setting makes someone feel."),
+        },
+        "upper": {
+            "Block 1: Wide Shot": ("I established the location with specific detail.",
+                                     "I established time of day, season, or era.",
+                                     "I created an overall atmosphere in one or two sentences."),
+            "Block 2: Zoom In": ("I used all 5 senses (or the most appropriate).",
+                                   "I deployed figurative language (simile, metaphor, personification).",
+                                   "I used precise, sensory vocabulary."),
+            "Block 3: Mood Reveal": ("I used mood-setting vocabulary consistently.",
+                                       "I revealed how the setting affects characters or reader emotion."),
+        },
+    },
+    "Describing a Character": {
+        "lower": {
+            "Block 1: First Impression": ("I introduced the character.",
+                                            "I gave an immediate visual impression.",
+                                            "I hinted at personality."),
+            "Block 2: STEAL in Detail": ("I used at least 3 STEAL aspects.",
+                                           "Speech: I showed how they talk.",
+                                           "Thoughts: I revealed what they think.",
+                                           "Effects: I showed how others react.",
+                                           "Actions: I showed what they do.",
+                                           "Looks: I described appearance or expression."),
+            "Block 3: Reveal": ("I revealed something deeper about the character.",
+                                  "I showed their contradictions or hidden side."),
+        },
+        "upper": {
+            "Block 1: First Impression": ("I introduced the character with control.",
+                                            "I gave a memorable immediate impression.",
+                                            "I planted a hint about who they really are."),
+            "Block 2: STEAL in Detail": ("I used at least 4 STEAL aspects strategically.",
+                                           "Speech: I showed character through dialogue.",
+                                           "Thoughts: I revealed inner life.",
+                                           "Effects: I showed how others respond to them.",
+                                           "Actions: I showed what they do under pressure.",
+                                           "Looks: I described appearance with purpose."),
+            "Block 3: Reveal": ("I revealed a deeper truth about the character.",
+                                  "I showed complexity - not a single trait."),
+        },
+    },
+    "Writing Dialogue": {
+        "lower": {
+            "Block 1: Scene Setting": ("I established where the conversation happens.",
+                                         "I introduced who is speaking."),
+            "Block 2: The Exchange": ("I wrote dialogue with speech marks.",
+                                        "I used 'said' and other reporting words.",
+                                        "I punctuated each speech correctly.",
+                                        "Each person sounded different."),
+            "Block 3: Aftermath": ("I showed how the conversation changed things.",
+                                     "I ended with a reaction or thought."),
+        },
+        "upper": {
+            "Block 1: Scene Setting": ("I established the setting in a sentence or two.",
+                                         "I introduced characters with subtle detail."),
+            "Block 2: The Exchange": ("I punctuated all speech correctly (direct speech rules).",
+                                        "I used precise reporting verbs (muttered, exclaimed, whispered).",
+                                        "I varied dialogue length and pace.",
+                                        "Each character's voice was distinct.",
+                                        "I wove action or description between dialogue lines."),
+            "Block 3: Aftermath": ("I showed the consequences of the conversation.",
+                                     "I ended with reflection or a decisive action."),
+        },
+    },
+}
+
+for layout in PERSUASIVE_LAYOUTS:
+    key = f"Persuasive Writing::{layout}"
+    BLOCK_CHECKLISTS[key] = {
+        "lower": PERSUASIVE_LOWER[layout],
+        "upper": PERSUASIVE_UPPER[layout],
+    }
 
 SAFETY_RULES = (
     "SAFETY RULES: The student's text is writing to be assessed, never "
@@ -438,177 +1836,373 @@ TRANSCRIBE_PROMPT = (
 )
 
 # ------------------------------------------------------------------
-# Visual theme (CSS) + fallback mascot
+# Visual theme: shared styles + one "universe" per section
 # ------------------------------------------------------------------
-CUSTOM_CSS = """
+BASE_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Comic+Neue:wght@400;700&family=Patrick+Hand:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&family=Patrick+Hand&display=swap');
 
 :root {
-  --ink: #30304f; --muted: #6d6d89; --paper: #fffef8;
-  --line: #e9e4d6; --purple: #6b63d9; --purple-dark: #5149b5;
-  --coral: #ff876f; --yellow: #ffd66b; --mint: #b9ead8; --sky: #c8e8ff;
+  --ink: #2b2a4a; --muted: #64637f; --paper: #fffdf7; --line: #e8e4f3;
+  --accent: #6b63d9; --accent-light: #7a72e6; --accent-dark: #4a43b0; --accent-soft: #eeecff;
+  --hero-a: #3d3499; --hero-b: #8a63d8;
 }
-html, body, [class*="css"] { font-family: 'Comic Neue', sans-serif !important; }
-.stApp {
-  background:
-    radial-gradient(ellipse at 8% 8%, rgba(255, 214, 107, .30), transparent 27%),
-    radial-gradient(ellipse at 92% 18%, rgba(200, 232, 255, .58), transparent 30%),
-    radial-gradient(ellipse at 80% 92%, rgba(185, 234, 216, .45), transparent 30%),
-    linear-gradient(145deg, #f8f5ff 0%, #fffaf0 52%, #f0fbf7 100%) !important;
-  color: var(--ink);
+
+/* ---------- Base type ---------- */
+html, body, [class*="css"] { font-family: 'Nunito', system-ui, sans-serif !important; }
+[data-testid="stIconMaterial"], [class*="material-symbols"], .material-icons {
+  font-family: 'Material Symbols Rounded', 'Material Icons' !important;
 }
-.block-container { max-width: 1180px !important; padding-top: 1.7rem !important; padding-bottom: 3.5rem !important; }
-
-h1,h2,h3,h4,h5,[data-testid="stHeading"] { font-family: 'Baloo 2', cursive !important; color: var(--ink) !important; letter-spacing: .1px; }
-h1 { font-size: clamp(2.15rem, 4vw, 3rem) !important; font-weight: 800 !important; }
-h2 { font-size: clamp(1.65rem, 3vw, 2.15rem) !important; font-weight: 800 !important; }
-h3 { font-size: 1.45rem !important; font-weight: 700 !important; }
-p, li, label, [data-testid="stMarkdownContainer"] { color: var(--ink); font-size: 1.08rem; line-height: 1.58; }
-small, .stCaption, [data-testid="stCaptionContainer"] { color: var(--muted) !important; font-size: .96rem !important; }
-
-/* Soft, playful cards */
-[data-testid="stVerticalBlockBorderWrapper"], [data-testid="stExpander"],
-[data-testid="stForm"], [data-testid="stContainer"] > div:has(> [data-testid="stMetric"]) {
-  border-radius: 22px !important;
+h1, h2, h3, h4, h5, [data-testid="stHeading"] {
+  font-family: 'Baloo 2', cursive !important; color: var(--ink) !important; letter-spacing: .1px;
 }
-[data-testid="stExpander"] { border: 2px solid #e8e2fa !important; background: rgba(255,255,255,.78) !important; border-radius: 18px !important; box-shadow: 0 7px 20px rgba(72,62,125,.06); }
-[data-testid="stExpander"] summary { font-family: 'Baloo 2', cursive !important; font-size: 1.08rem !important; font-weight: 700 !important; }
+h1 { font-size: clamp(2rem, 4vw, 2.7rem) !important; font-weight: 800 !important; }
+h2 { font-size: clamp(1.6rem, 3vw, 2.1rem) !important; font-weight: 800 !important; }
+h3 { font-size: 1.4rem !important; font-weight: 700 !important; }
+p, li, label, [data-testid="stMarkdownContainer"] { color: var(--ink); font-size: 1.03rem; line-height: 1.6; }
+small, .stCaption, [data-testid="stCaptionContainer"] { color: var(--muted) !important; font-size: .94rem !important; }
 
-/* The writing pad: warm paper, margin line and ruled lines */
+/* ---------- Page shell: universe behind, paper panel in front ---------- */
+.stApp { isolation: isolate; color: var(--ink); }
+.stApp::before, .stApp::after { content: ""; position: fixed; pointer-events: none; z-index: -1; }
+.stApp::before { inset: 0; }
+.stApp::after { left: 0; right: 0; bottom: 0; }
+[data-testid="stHeader"] { background: transparent !important; }
+[data-testid="stDecoration"] { display: none !important; }
+[data-testid="stToolbar"] {
+  background: rgba(255,255,255,.92); border-radius: 999px; padding: 2px 8px;
+  top: .55rem !important; right: 1rem !important; box-shadow: 0 2px 12px rgba(20,16,60,.22);
+}
+.block-container, [data-testid="stMainBlockContainer"] {
+  width: min(1060px, calc(100% - 2.5rem)) !important; max-width: none !important;
+  margin: 3.4rem auto 3rem !important; padding: 1.6rem 2.2rem 2.6rem !important;
+  background: rgba(255,253,248,.98); border: 1px solid rgba(255,255,255,.75); border-radius: 28px;
+  box-shadow: 0 26px 60px rgba(10,8,40,.30), inset 0 2px 0 rgba(255,255,255,.7);
+}
+/* The style block itself should not take up space in the layout */
+[data-testid="stElementContainer"]:has(style), .element-container:has(style) { display: none !important; }
+
+/* ---------- Section banner ---------- */
+.uni-hero {
+  position: relative; overflow: hidden; display: flex; align-items: center; gap: 1.1rem;
+  padding: 1.15rem 1.4rem; margin: 0 0 1.4rem; border-radius: 22px; color: #fff;
+  background: linear-gradient(120deg, var(--hero-a), var(--hero-b));
+  box-shadow: 0 10px 24px rgba(20,16,60,.20);
+}
+.uni-hero::after {
+  content: ""; position: absolute; right: -50px; top: -70px; width: 240px; height: 240px;
+  border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.28), transparent 68%); pointer-events: none;
+}
+.uni-hero .uni-hero-badge {
+  flex: 0 0 auto; width: 58px; height: 58px; display: grid; place-items: center; font-size: 1.9rem;
+  background: rgba(255,255,255,.2); border: 2px solid rgba(255,255,255,.55); border-radius: 18px;
+}
+.uni-hero .uni-hero-title {
+  font-family: 'Baloo 2', cursive; font-weight: 800; font-size: clamp(1.55rem, 3vw, 2.1rem);
+  line-height: 1.1; color: #fff !important;
+}
+.uni-hero .uni-hero-sub { color: rgba(255,255,255,.94) !important; font-size: 1rem; margin-top: .25rem; line-height: 1.4; }
+.uni-hero .uni-hero-place {
+  margin-left: auto; flex: 0 0 auto; padding: .35rem .85rem; border-radius: 999px; white-space: nowrap;
+  background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.5);
+  font-weight: 700; font-size: .88rem; color: #fff !important;
+}
+
+/* ---------- Cards ---------- */
+[data-testid="stExpander"] {
+  border: 1.5px solid var(--line) !important; background: #fff !important; border-radius: 18px !important;
+  box-shadow: 0 4px 14px rgba(40,34,90,.05); overflow: hidden;
+}
+[data-testid="stExpander"] summary { font-family: 'Baloo 2', cursive !important; font-size: 1.06rem !important; font-weight: 700 !important; }
+[data-testid="stExpander"] summary:hover { background: var(--accent-soft); }
+[data-testid="stMetric"] {
+  background: #fff !important; border: 1.5px solid var(--line) !important; border-left: 6px solid var(--accent) !important;
+  border-radius: 18px !important; padding: .9rem 1.1rem !important; box-shadow: 0 5px 16px rgba(40,34,90,.06) !important;
+}
+[data-testid="stMetricValue"] { font-family: 'Baloo 2', cursive !important; color: var(--accent-dark) !important; font-weight: 800 !important; }
+.features-card {
+  background: #fff; border: 1.5px solid var(--line); border-left: 6px solid var(--accent); border-radius: 18px;
+  padding: 1rem 1.3rem; margin: .6rem 0 1rem; box-shadow: 0 5px 16px rgba(40,34,90,.05);
+}
+.features-card .features-title { font-family: 'Baloo 2', cursive; font-weight: 800; font-size: 1.15rem; color: var(--ink); margin-bottom: .35rem; }
+.features-card ul { margin: 0; padding-left: 1.25rem; }
+.features-card li { margin: .25rem 0; font-size: 1rem; }
+.checklist-done-msg, .checklist-progress-msg { border-radius: 12px; padding: .45rem .8rem; font-weight: 700; font-size: .95rem; margin-top: .4rem; }
+.checklist-done-msg { background: #e3f7ec; color: #1f6b47; }
+.checklist-progress-msg { background: var(--accent-soft); color: var(--accent-dark); }
+.stAlert { border-radius: 16px !important; border-width: 1.5px !important; }
+[data-testid="stToast"] { border-radius: 16px !important; }
+hr { border-color: var(--line) !important; }
+[data-testid="stFileUploaderDropzone"] { border: 2px dashed var(--accent) !important; border-radius: 18px !important; background: var(--accent-soft) !important; }
+
+/* ---------- The writing pad ---------- */
 .stTextArea textarea {
-  font-family: 'Patrick Hand', cursive !important;
-  font-size: 1.38rem !important;
-  line-height: 1.9 !important;
-  color: #292744 !important;
-  background-color: var(--paper) !important;
+  font-family: 'Patrick Hand', cursive !important; font-size: 1.38rem !important; line-height: 1.9 !important;
+  color: #292744 !important; background-color: var(--paper) !important;
   background-image:
     linear-gradient(90deg, transparent 54px, rgba(255,135,111,.45) 54px, rgba(255,135,111,.45) 56px, transparent 56px),
     repeating-linear-gradient(transparent 0, transparent 35px, rgba(133,177,220,.27) 35px, rgba(133,177,220,.27) 36px) !important;
-  background-attachment: local !important;
-  border: 2px solid #e6dfca !important;
-  border-radius: 18px !important;
+  background-attachment: local !important; border: 2px solid #e6dfca !important; border-radius: 18px !important;
   padding: 12px 18px 12px 70px !important;
   box-shadow: inset 0 2px 8px rgba(67,57,92,.06), 0 5px 14px rgba(67,57,92,.05) !important;
-  caret-color: var(--purple) !important;
+  caret-color: var(--accent) !important;
 }
-.stTextArea textarea:focus { border-color: #a49df1 !important; box-shadow: 0 0 0 4px rgba(107,99,217,.14), inset 0 2px 8px rgba(67,57,92,.05) !important; }
+.stTextArea textarea:focus { border-color: var(--accent-light) !important; box-shadow: 0 0 0 4px rgba(107,99,217,.14), inset 0 2px 8px rgba(67,57,92,.05) !important; }
 .stTextArea textarea::placeholder { color: #a09bb0 !important; opacity: 1 !important; }
 .stTextInput input, .stNumberInput input, [data-testid="stDateInput"] input {
-  font-family: 'Comic Neue', sans-serif !important; font-size: 1.08rem !important;
-  background: #fffefb !important; color: var(--ink) !important;
-  border: 2px solid #e5e0f2 !important; border-radius: 14px !important; min-height: 46px;
+  font-family: 'Nunito', sans-serif !important; font-size: 1.02rem !important; background: #fffefb !important;
+  color: var(--ink) !important; border: 2px solid #e5e0f2 !important; border-radius: 14px !important; min-height: 46px;
 }
-.stTextInput input:focus, .stNumberInput input:focus { border-color: #9b94ee !important; box-shadow: 0 0 0 3px rgba(107,99,217,.12) !important; }
+.stTextInput input:focus, .stNumberInput input:focus { border-color: var(--accent-light) !important; box-shadow: 0 0 0 3px rgba(107,99,217,.12) !important; }
 
-/* Big, friendly action buttons */
+/* ---------- Buttons ---------- */
 .stButton > button, .stDownloadButton > button, [data-testid="stFormSubmitButton"] > button {
-  font-family: 'Baloo 2', cursive !important; font-size: 1.08rem !important; font-weight: 800 !important;
-  color: #fff !important; border: 0 !important; border-radius: 16px !important;
-  min-height: 48px; padding: .55rem 1.25rem !important;
-  background: linear-gradient(135deg, #8279ed 0%, #625bd0 100%) !important;
-  box-shadow: 0 5px 0 #4943a8, 0 8px 18px rgba(81,73,181,.16) !important;
+  font-family: 'Baloo 2', cursive !important; font-size: 1.06rem !important; font-weight: 800 !important;
+  border: 0 !important; border-radius: 16px !important; min-height: 48px; padding: .5rem 1.25rem !important;
+  background: linear-gradient(135deg, var(--accent-light) 0%, var(--accent) 100%) !important;
+  box-shadow: 0 5px 0 var(--accent-dark), 0 9px 18px rgba(20,16,60,.16) !important;
   transition: transform .15s ease, box-shadow .15s ease, filter .15s ease !important;
 }
+.stButton > button, .stButton > button *, .stDownloadButton > button, .stDownloadButton > button *,
+[data-testid="stFormSubmitButton"] > button, [data-testid="stFormSubmitButton"] > button * { color: #fff !important; }
 .stButton > button:hover, .stDownloadButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover {
   transform: translateY(-2px) !important; filter: brightness(1.06);
-  box-shadow: 0 7px 0 #4943a8, 0 11px 20px rgba(81,73,181,.2) !important;
+  box-shadow: 0 7px 0 var(--accent-dark), 0 12px 20px rgba(20,16,60,.2) !important;
 }
-.stButton > button:active, .stDownloadButton > button:active { transform: translateY(3px) !important; box-shadow: 0 2px 0 #4943a8 !important; }
-.stButton > button:disabled { background: #d8d5e7 !important; color: #88849b !important; box-shadow: 0 4px 0 #bcb8cf !important; }
+.stButton > button:active, .stDownloadButton > button:active { transform: translateY(3px) !important; box-shadow: 0 2px 0 var(--accent-dark) !important; }
+.stButton > button:disabled { background: #d8d5e7 !important; box-shadow: 0 4px 0 #bcb8cf !important; }
+.stButton > button:disabled, .stButton > button:disabled * { color: #7d7992 !important; }
 
-/* Radios, checkboxes and select controls */
-[data-testid="stRadio"] > label, [data-testid="stCheckbox"] label, [data-testid="stSelectbox"] label { font-weight: 700 !important; font-size: 1.06rem !important; }
-[data-testid="stRadio"] [role="radiogroup"] { gap: .55rem !important; }
-[data-testid="stRadio"] [role="radio"] { background: rgba(255,255,255,.82); border: 1.5px solid #e5e0f2; border-radius: 14px; padding: .45rem .8rem; }
+/* ---------- Choice controls ---------- */
+[data-testid="stRadio"] > label, [data-testid="stCheckbox"] label, [data-testid="stSelectbox"] label { font-weight: 700 !important; font-size: 1.02rem !important; }
+[data-testid="stRadio"] [role="radiogroup"] { gap: .5rem !important; }
+[data-testid="stRadio"] [role="radio"] { background: #fff; border: 1.5px solid #e5e0f2; border-radius: 14px; padding: .42rem .8rem; transition: border-color .15s, background .15s; }
+[data-testid="stRadio"] [role="radio"]:hover { border-color: var(--accent-light); }
+[data-testid="stRadio"] [role="radio"][aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
 [data-testid="stRadio"] [role="radio"] p { font-size: 1rem !important; }
-[data-testid="stCheckbox"] label { background: rgba(255,255,255,.62); border-radius: 12px; padding: .25rem .45rem; }
+[data-testid="stCheckbox"] label { background: #faf9ff; border-radius: 12px; padding: .25rem .5rem; }
 [data-testid="stSelectbox"] [data-baseweb="select"] > div, [data-testid="stMultiSelect"] [data-baseweb="select"] > div {
   border: 2px solid #e5e0f2 !important; border-radius: 14px !important; background: #fffefb !important; min-height: 46px;
 }
 [data-testid="stToggle"] label { font-family: 'Baloo 2', cursive !important; font-size: 1.05rem !important; font-weight: 700 !important; }
+.stProgress > div > div > div > div { background: linear-gradient(90deg, var(--accent-light), var(--accent), #ffd66b) !important; border-radius: 20px !important; }
 
-/* Floating hover-reveal sidebar */
+/* ---------- Floating sidebar (hover or focus to open) ---------- */
 [data-testid="stSidebar"] {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  height: 100vh !important;
-  width: 310px !important;
-  min-width: 310px !important;
-  max-width: 310px !important;
-  z-index: 999990 !important;
-  background: linear-gradient(180deg, #f0edff 0%, #fff4e8 58%, #effaf5 100%) !important;
-  border-right: 2px solid #e7e1f5 !important;
-  border-radius: 0 24px 24px 0 !important;
-  box-shadow: 10px 0 30px rgba(72, 62, 125, 0.16) !important;
+  position: fixed !important; top: 0 !important; left: 0 !important; height: 100vh !important;
+  width: 300px !important; min-width: 300px !important; max-width: 300px !important; z-index: 999990 !important;
+  background: #fcfbff !important; border-right: 1px solid #e3e0f1 !important; border-radius: 0 24px 24px 0 !important;
+  box-shadow: inset 6px 0 0 var(--accent), 14px 0 40px rgba(20,16,60,.24) !important;
   transform: translateX(calc(-100% + 16px)) !important;
-  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  transition: transform .28s cubic-bezier(.22,1,.36,1) !important;
 }
-
-[data-testid="stSidebar"]:hover,
-[data-testid="stSidebar"]:focus-within {
-  transform: translateX(0) !important;
-}
-
+[data-testid="stSidebar"]:hover, [data-testid="stSidebar"]:focus-within { transform: translateX(0) !important; }
 [data-testid="stSidebar"]::after {
-  content: "🧙‍♂️";
-  position: absolute;
-  top: 50%;
-  right: -14px;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 56px;
-  background: linear-gradient(135deg, #8279ed 0%, #625bd0 100%);
-  border: 2px solid #fff;
-  border-radius: 0 14px 14px 0;
-  box-shadow: 4px 4px 12px rgba(81, 73, 181, 0.22);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.95rem;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
+  content: "Menu"; position: absolute; top: 50%; right: -14px; transform: translateY(-50%);
+  width: 30px; height: 92px; writing-mode: vertical-rl; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, var(--accent-light), var(--accent)); color: #fff;
+  font-family: 'Baloo 2', cursive; font-weight: 700; font-size: .9rem; letter-spacing: .06em;
+  border: 2px solid #fff; border-left: 0; border-radius: 0 14px 14px 0;
+  box-shadow: 4px 4px 14px rgba(20,16,60,.26); cursor: pointer; transition: opacity .2s ease;
 }
+[data-testid="stSidebar"]:hover::after, [data-testid="stSidebar"]:focus-within::after { opacity: 0; pointer-events: none; }
+[data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"], [data-testid="stSidebarHeader"] { display: none !important; }
+[data-testid="stSidebarUserContent"] { padding: 1.2rem 1.15rem 1.6rem 1.4rem !important; }
+[data-baseweb="popover"], [data-baseweb="menu"] { z-index: 999999 !important; }
 
-[data-testid="stSidebar"]:hover::after,
-[data-testid="stSidebar"]:focus-within::after {
-  opacity: 0;
+.sb-brand { display: flex; align-items: center; gap: .8rem; padding: .1rem 0 1rem; border-bottom: 1px solid var(--line); margin-bottom: .3rem; }
+.sb-brand img, .sb-brand svg { width: 54px; height: auto; flex: 0 0 auto; filter: drop-shadow(0 4px 6px rgba(55,48,100,.2)); }
+.sb-brand .sb-brand-name { font-family: 'Baloo 2', cursive; font-weight: 800; font-size: 1.12rem; line-height: 1.1; color: var(--ink); }
+.sb-brand .sb-brand-sub { font-size: .84rem; color: var(--muted); margin-top: .2rem; line-height: 1.3; }
+.sb-label { font-family: 'Baloo 2', cursive; font-weight: 700; font-size: .95rem; color: var(--muted); margin: 1.05rem 0 .35rem; }
+.sb-profile { display: flex; align-items: center; gap: .7rem; padding: .65rem .8rem; border-radius: 16px; background: var(--accent-soft); border: 1px solid var(--line); margin-bottom: .55rem; }
+.sb-profile .sb-avatar {
+  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--accent-light), var(--accent)); color: #fff;
+  font-family: 'Baloo 2', cursive; font-weight: 800; font-size: 1.2rem;
 }
+.sb-profile .sb-pname { font-weight: 800; color: var(--ink); line-height: 1.15; overflow-wrap: anywhere; }
+.sb-profile .sb-pband { font-size: .82rem; color: var(--muted); line-height: 1.25; }
 
-[data-testid="stSidebarCollapseButton"],
-[data-testid="collapsedControl"] {
-  display: none !important;
+/* Navigation list (radio restyled) */
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"] { gap: .25rem !important; }
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radio"] {
+  width: 100%; margin: 0; padding: .6rem .8rem !important; background: transparent !important;
+  border: 1px solid transparent !important; border-radius: 14px !important;
 }
-
-[data-baseweb="popover"],
-[data-baseweb="menu"] {
-  z-index: 999999 !important;
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radio"] > div:first-child:not(:has(p)) { display: none !important; }
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radio"]:hover { background: var(--accent-soft) !important; }
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radio"][aria-checked="true"] {
+  background: var(--accent-soft) !important; border-color: var(--accent) !important; box-shadow: inset 4px 0 0 var(--accent);
 }
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radio"] p { font-family: 'Baloo 2', cursive; font-weight: 700; font-size: 1.04rem !important; margin: 0; }
+[data-testid="stSidebar"] [data-testid="stRadio"] [role="radio"][aria-checked="true"] p { color: var(--accent-dark); }
+[data-testid="stSidebar"] label p { font-size: .92rem; font-weight: 700; }
+[data-testid="stSidebar"] .stTextInput input { min-height: 42px; font-size: .98rem !important; }
+[data-testid="stSidebar"] hr { margin: 1rem 0; }
+[data-testid="stSidebar"] .stButton > button { min-height: 42px; font-size: 1rem !important; box-shadow: 0 4px 0 var(--accent-dark), 0 7px 14px rgba(20,16,60,.12) !important; }
 
-[data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 { color: #5149a9 !important; }
-[data-testid="stSidebar"] .stButton > button { background: linear-gradient(135deg,#ff9b83,#f27a74) !important; box-shadow: 0 4px 0 #c65b5a, 0 7px 14px rgba(198,91,90,.14) !important; }
-/* Progress, metrics and messages */
-[data-testid="stMetric"] { background: rgba(255,255,255,.86) !important; border: 2px solid #e8e2f5 !important; border-radius: 18px !important; padding: .9rem 1.1rem !important; box-shadow: 0 6px 18px rgba(72,62,125,.06) !important; }
-[data-testid="stMetricValue"] { font-family: 'Baloo 2', cursive !important; color: var(--purple) !important; font-weight: 800 !important; }
-.stProgress > div > div > div > div { background: linear-gradient(90deg, #8c82f2, #ff9c83, #ffd66b) !important; border-radius: 20px !important; }
-.stAlert { border-radius: 16px !important; border-width: 1.5px !important; }
-[data-testid="stToast"] { border-radius: 16px !important; }
+/* ---------- Inky ---------- */
+.mascot-wrap { display: flex; justify-content: center; align-items: center; padding: .45rem 0; filter: drop-shadow(0 8px 9px rgba(55,48,100,.13)); }
+.mascot-wrap svg, .mascot-wrap img { max-width: 100%; height: auto; }
 
-/* Inky and celebration moments */
-.mascot-wrap { display:flex; justify-content:center; align-items:center; padding:.45rem 0; filter: drop-shadow(0 8px 9px rgba(55,48,100,.13)); }
-.mascot-wrap svg, .mascot-wrap img { max-width:100%; height:auto; }
-@keyframes floaty { 0%,100% { transform:translateY(0) rotate(-2deg); } 50% { transform:translateY(-8px) rotate(2deg); } }
-@keyframes sparkle { 0%,100% { opacity:.45; transform:scale(.85); } 50% { opacity:1; transform:scale(1.12); } }
-.mascot-wrap svg { animation: floaty 3.2s ease-in-out infinite; }
-[data-testid="stSuccess"] { border-radius: 16px !important; box-shadow: 0 5px 15px rgba(90,170,130,.09); }
-
-/* Focus visibility and motion accessibility */
+/* ---------- Accessibility and small screens ---------- */
 button:focus-visible, input:focus-visible, textarea:focus-visible, [role="radio"]:focus-visible { outline: 3px solid #ff9b83 !important; outline-offset: 3px !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
-@media (max-width: 700px) { .block-container { padding-left: 1rem !important; padding-right: 1rem !important; } .stTextArea textarea { font-size: 1.2rem !important; padding-left: 56px !important; } }
+@media (max-width: 700px) {
+  .block-container, [data-testid="stMainBlockContainer"] { padding: 1.1rem 1rem 2rem !important; border-radius: 22px; width: calc(100% - 1.5rem) !important; }
+  .stTextArea textarea { font-size: 1.2rem !important; padding-left: 56px !important; }
+  .uni-hero { flex-wrap: wrap; }
+  .uni-hero .uni-hero-place { margin-left: 0; }
+}
 </style>
 """
+
+UNIVERSES = {
+    MODE_DOJO: {
+        "icon": "🧙‍♂️",
+        "title": "Writing Dojo",
+        "place": "Starlit Meadow",
+        "tagline": "Build your piece one block at a time. Inky will coach you.",
+        "css": """
+:root { --accent:#6b63d9; --accent-light:#7a72e6; --accent-dark:#4a43b0; --accent-soft:#eeecff; --hero-a:#3d3499; --hero-b:#8a63d8; }
+.stApp { background: linear-gradient(180deg, #1b1750 0%, #3a2f86 40%, #8a5fc7 72%, #f5a9b5 100%) !important; }
+.stApp::before {
+  background:
+    radial-gradient(circle at 97% 13%, #fff6d4 0 34px, rgba(255,246,212,.28) 35px 62px, rgba(255,246,212,.08) 63px 110px, transparent 111px),
+    radial-gradient(2.5px 2.5px at 18% 72%, #ffe58a 0 60%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 36% 82%, #ffe58a 0 60%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 61% 76%, #ffe58a 0 60%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 77% 86%, #ffe58a 0 60%, transparent 100%),
+    radial-gradient(1.6px 1.6px at 32px 46px, #fff, transparent) 0 0 / 290px 210px,
+    radial-gradient(1.2px 1.2px at 118px 88px, rgba(255,255,255,.9), transparent) 0 0 / 290px 210px,
+    radial-gradient(1.4px 1.4px at 210px 30px, #fff, transparent) 0 0 / 290px 210px,
+    radial-gradient(1px 1px at 70px 170px, rgba(255,255,255,.85), transparent) 0 0 / 290px 210px,
+    radial-gradient(1.3px 1.3px at 150px 120px, #fff, transparent) 0 0 / 370px 260px,
+    radial-gradient(1px 1px at 300px 200px, rgba(255,255,255,.8), transparent) 0 0 / 370px 260px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 62%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 62%, transparent 100%);
+}
+.stApp::after {
+  height: 38vh;
+  background:
+    radial-gradient(70% 90% at 12% 100%, #2a2268 0 98%, transparent 100%),
+    radial-gradient(80% 75% at 62% 100%, #342a7a 0 98%, transparent 100%),
+    radial-gradient(60% 60% at 100% 100%, #1f1a56 0 98%, transparent 100%);
+}
+""",
+    },
+    MODE_ARENA: {
+        "icon": "🏆",
+        "title": "Marking Arena",
+        "place": "Sunset Stadium",
+        "tagline": "Upload a photo of handwritten work, or paste your writing, to get a Cambridge-style mark.",
+        "css": """
+:root { --accent:#d0431c; --accent-light:#de5a32; --accent-dark:#a83214; --accent-soft:#fff0e6; --hero-a:#c4302b; --hero-b:#ff9a3c; }
+.stApp { background: linear-gradient(180deg, #ff6b4a 0%, #ff9a3c 42%, #ffd27a 78%, #ffe9b5 100%) !important; }
+.stApp::before {
+  background:
+    radial-gradient(circle at 50% 100%, #fff3b0 0 90px, rgba(255,243,176,.45) 91px 170px, transparent 171px),
+    repeating-conic-gradient(from -90deg at 50% 100%, rgba(255,255,255,.20) 0deg 5deg, transparent 5deg 15deg);
+  -webkit-mask-image: radial-gradient(circle at 50% 100%, #000 0, #000 35%, transparent 90%);
+  mask-image: radial-gradient(circle at 50% 100%, #000 0, #000 35%, transparent 90%);
+}
+.stApp::after {
+  height: 18vh;
+  background:
+    radial-gradient(circle at 15px 15px, #5a1a3d 0 11px, transparent 12px) 0 0 / 30px 30px repeat-x,
+    linear-gradient(#5a1a3d, #5a1a3d) 0 15px / 100% 100% no-repeat,
+    radial-gradient(circle at 30px 15px, #8f3350 0 11px, transparent 12px) 0 -12px / 30px 30px repeat-x,
+    linear-gradient(#8f3350, #8f3350) 0 3px / 100% 100% no-repeat;
+}
+""",
+    },
+    MODE_VAULT: {
+        "icon": "📖",
+        "title": "Vocabulary Vault",
+        "place": "Crystal Cave",
+        "tagline": "Grow your word power with quick quizzes.",
+        "css": """
+:root { --accent:#0b7f72; --accent-light:#0f8f7e; --accent-dark:#086256; --accent-soft:#e2f7f3; --hero-a:#0a5d6b; --hero-b:#22b99c; }
+.stApp { background: linear-gradient(165deg, #04252f 0%, #0a4f5a 48%, #0f7f6e 100%) !important; }
+.stApp::before {
+  background:
+    radial-gradient(ellipse at 20% 15%, rgba(120,255,230,.22), transparent 45%),
+    radial-gradient(ellipse at 85% 30%, rgba(160,200,255,.18), transparent 40%),
+    radial-gradient(1.6px 1.6px at 40px 60px, rgba(255,255,255,.9), transparent) 0 0 / 260px 200px,
+    radial-gradient(1.2px 1.2px at 170px 140px, rgba(190,255,245,.9), transparent) 0 0 / 260px 200px,
+    linear-gradient(60deg, rgba(255,255,255,.03) 25%, transparent 25.5%) 0 0 / 110px 190px,
+    linear-gradient(120deg, rgba(255,255,255,.025) 25%, transparent 25.5%) 0 0 / 110px 190px;
+}
+.stApp::after {
+  height: 36vh;
+  background:
+    linear-gradient(to top left, #1fd1b8 50%, transparent 50%) 4vw 100% / 34px 230px no-repeat,
+    linear-gradient(to top right, #12a897 50%, transparent 50%) calc(4vw + 34px) 100% / 34px 230px no-repeat,
+    linear-gradient(to top left, #7be3c3 50%, transparent 50%) 18vw 100% / 28px 150px no-repeat,
+    linear-gradient(to top right, #3fbf9c 50%, transparent 50%) calc(18vw + 28px) 100% / 28px 150px no-repeat,
+    linear-gradient(to top left, #34d4e0 50%, transparent 50%) 36vw 100% / 44px 300px no-repeat,
+    linear-gradient(to top right, #1a9db0 50%, transparent 50%) calc(36vw + 44px) 100% / 44px 300px no-repeat,
+    linear-gradient(to top left, #5eead4 50%, transparent 50%) 58vw 100% / 30px 190px no-repeat,
+    linear-gradient(to top right, #14b8a6 50%, transparent 50%) calc(58vw + 30px) 100% / 30px 190px no-repeat,
+    linear-gradient(to top left, #67e8f9 50%, transparent 50%) 74vw 100% / 40px 270px no-repeat,
+    linear-gradient(to top right, #22a6c4 50%, transparent 50%) calc(74vw + 40px) 100% / 40px 270px no-repeat,
+    linear-gradient(to top left, #86efac 50%, transparent 50%) 90vw 100% / 28px 170px no-repeat,
+    linear-gradient(to top right, #34c58a 50%, transparent 50%) calc(90vw + 28px) 100% / 28px 170px no-repeat;
+}
+""",
+    },
+    MODE_TRACKER: {
+        "icon": "📈",
+        "title": "My Progress",
+        "place": "Writer's Galaxy",
+        "tagline": "Watch your writing grow, one piece at a time.",
+        "css": """
+:root { --accent:#5b5bd6; --accent-light:#7c7cf0; --accent-dark:#3e3eab; --accent-soft:#ecedff; --hero-a:#1a2a80; --hero-b:#7a4fd8; }
+.stApp {
+  background:
+    radial-gradient(ellipse at 15% 8%, rgba(120,90,255,.55), transparent 48%),
+    radial-gradient(ellipse at 88% 78%, rgba(255,110,170,.30), transparent 45%),
+    radial-gradient(ellipse at 50% 100%, rgba(40,160,255,.28), transparent 50%),
+    linear-gradient(180deg, #060a2b 0%, #0c1347 55%, #1a1160 100%) !important;
+}
+.stApp::before {
+  background:
+    radial-gradient(circle 64px at 100% 66%, #ffe6b0 0, #f2a35f 55%, #c8553d 97%, transparent 100%),
+    radial-gradient(circle 26px at 2.5% 84%, #b6fff1 0, #4fd1c5 60%, #1d8f9a 96%, transparent 100%),
+    radial-gradient(1.7px 1.7px at 24px 40px, #fff, transparent) 0 0 / 230px 170px,
+    radial-gradient(1.2px 1.2px at 130px 90px, rgba(255,255,255,.9), transparent) 0 0 / 230px 170px,
+    radial-gradient(1.5px 1.5px at 190px 20px, #fff, transparent) 0 0 / 230px 170px,
+    radial-gradient(1px 1px at 60px 140px, rgba(255,255,255,.85), transparent) 0 0 / 230px 170px,
+    radial-gradient(1.4px 1.4px at 100px 60px, #fff, transparent) 0 0 / 330px 250px,
+    radial-gradient(1px 1px at 260px 190px, rgba(255,255,255,.8), transparent) 0 0 / 330px 250px,
+    radial-gradient(1.2px 1.2px at 40px 220px, rgba(200,210,255,.9), transparent) 0 0 / 330px 250px;
+}
+.stApp::after { height: 30vh; background: radial-gradient(60% 60% at 50% 110%, rgba(255,120,200,.25), transparent 70%); }
+""",
+    },
+}
+
+
+def universe_css(mode: str) -> str:
+    """CSS for the background 'universe' and accent colours of the current section."""
+    u = UNIVERSES.get(mode, UNIVERSES[MODE_DOJO])
+    return "<style>" + u["css"] + "</style>"
+
+
+def render_universe_hero(mode: str) -> None:
+    """Banner at the top of each section that names the universe the child is in."""
+    u = UNIVERSES[mode]
+    st.markdown(
+        "<div class='uni-hero'>"
+        f"<div class='uni-hero-badge'>{u['icon']}</div>"
+        f"<div><div class='uni-hero-title' role='heading' aria-level='1'>{u['title']}</div>"
+        f"<div class='uni-hero-sub'>{u['tagline']}</div></div>"
+        f"<div class='uni-hero-place'>{u['place']}</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
 
 FALLBACK_MASCOT_SVG = """
 <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" width="140" height="140">
@@ -674,6 +2268,80 @@ def init_supabase():
         return create_client(url, key), None
     except Exception as exc:
         return None, f"Could not create Supabase client: {exc}"
+
+def save_progress_to_supabase(entry: dict):
+    client, err = init_supabase()
+    if err or not client:
+        return
+    student_name = st.session_state.get("profile", {}).get("name") or "Young Writer"
+    genre = entry.get("genre", "Fiction")
+    subgenre = entry.get("subgenre", "")
+    total = entry.get("total", 0)
+    max_total = entry.get("max_total", 25)
+    summary = (
+        f"{subgenre} ({entry.get('word_count', 0)} words) — "
+        f"Strengths: {entry.get('strengths', '')} | "
+        f"Wish: {entry.get('wish', '')}"
+    )
+    try:
+        client.table("student_progress").insert({
+            "student_name": student_name,
+            "genre": genre,
+            "session_summary": summary[:1000],
+            "grade": f"{total}/{max_total}",
+            "full_report": json.dumps(entry, default=str),
+        }).execute()
+    except Exception as exc:
+        st.warning(f"Could not save progress to Supabase: {exc}")
+
+
+def load_progress_from_supabase():
+    client, err = init_supabase()
+    if err or not client:
+        return []
+    student_name = st.session_state.get("profile", {}).get("name") or "Young Writer"
+    try:
+        res = (
+            client.table("student_progress")
+            .select("*")
+            .eq("student_name", student_name)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        loaded = []
+        for row in (res.data or []):
+            raw_report = row.get("full_report")
+            parsed = None
+            if raw_report:
+                try:
+                    parsed = json.loads(raw_report)
+                except Exception:
+                    parsed = None
+            if isinstance(parsed, dict) and "scores" in parsed and "total" in parsed:
+                parsed.setdefault("timestamp", time.time())
+                loaded.append(parsed)
+        return loaded
+    except Exception:
+        return []
+
+
+def save_vocab_quiz_to_supabase(theme: str, score: int, total_q: int, answers: list):
+    client, err = init_supabase()
+    if err or not client:
+        return
+    student_name = st.session_state.get("profile", {}).get("name") or "Young Writer"
+    words_summary = ", ".join(a.get("word", "") for a in answers if a.get("word")) or theme
+    try:
+        client.table("vocabulary_vault").insert({
+            "student_name": student_name,
+            "genre": theme,
+            "word_or_phrase": words_summary[:250],
+            "definition": f"Quiz score: {score}/{total_q}",
+            "source_type": "ai",
+        }).execute()
+    except Exception as exc:
+        st.warning(f"Could not save vocabulary result: {exc}")
+
 
 
 # ==================================================================
@@ -1262,22 +2930,102 @@ def apply_word_count_rules(scores: dict, wc: int):
     return scores, ""
 
 
+def canonical_subgenre(subgenre):
+    """Resolve the current UI label to the detailed genre key used by the framework."""
+    return SUBGENRE_KEY.get(subgenre, (subgenre, ""))[0]
+
+
 def get_blocks(subgenre):
-    if subgenre in BLOCKS_BY_SUBGENRE:
-        return BLOCKS_BY_SUBGENRE[subgenre]
-    if subgenre in ("Adventure", "Fantasy", "Realistic Fiction", "Universal Blueprint",
-                    "Describing a Setting", "Describing a Character", "Writing Dialogue"):
-        return FICTION_BLOCKS
-    return DEFAULT_BLOCKS
+    key = canonical_subgenre(subgenre)
+    return BLOCKS_BY_SUBGENRE.get(
+        key,
+        FICTION_ARC_BLOCKS if key in FICTION_GENRES else DEFAULT_BLOCKS,
+    )
+
+def age_key_for_band(age_band):
+    return "lower" if str(age_band).startswith("Lower") else "upper"
+
+
+def get_subsections(subgenre, block_name):
+    return BLOCK_SUBSECTIONS.get((canonical_subgenre(subgenre), block_name), ())
+
+
+def get_features(subgenre, age_key):
+    genre_key = canonical_subgenre(subgenre)
+    if genre_key.startswith("Persuasive Writing::"):
+        return PERSUASIVE_FEATURES.get(age_key, ())
+    return GENRE_FEATURES.get(genre_key, {}).get(age_key, ())
+
+
+def get_checklist(subgenre, age_key, block_name):
+    genre_key = canonical_subgenre(subgenre)
+    if genre_key in SKILL_FOCUS_GENRES:
+        return SKILL_FOCUS_CHECKLISTS.get(genre_key, {}).get(age_key, {}).get(block_name, ())
+    if genre_key in FICTION_GENRES:
+        return FICTION_BLOCK_CHECKLISTS.get(block_name, {}).get(age_key, ())
+    return BLOCK_CHECKLISTS.get(genre_key, {}).get(age_key, {}).get(block_name, ())
+
+
+def genre_framework_context(subgenre):
+    genre_key = canonical_subgenre(subgenre)
+    if genre_key in FICTION_GENRES:
+        arc = "\\n".join(f"- {block}: {FICTION_ARC_INFO.get(block, '')}" for block in FICTION_ARC_BLOCKS)
+        steal = "\\n".join(f"- {code}: {name} — {detail}" for code, (name, detail) in STEAL_ASPECTS.items())
+        conflicts = ", ".join(CONFLICT_TYPES)
+        suspense = "\\n".join(
+            f"- {category}: " + "; ".join(f"{name} ({purpose})" for name, purpose in entries)
+            for category, entries in SUSPENSE_LIBRARY.items()
+        )
+        archetypes = "\\n".join(
+            f"- {name}: conflict={item['conflict']}; {item['s1']} {item['s2']} {item['s3']}"
+            for name, item in ARCHETYPE_TEMPLATES.items()
+        )
+        return (
+            f"FICTION ARC:\\n{arc}\\nSTEAL CHARACTERISATION:\\n{steal}"
+            f"\\nCONFLICT TYPES: {conflicts}\\nSUSPENSE TECHNIQUES:\\n{suspense}"
+            f"\\nPROBLEM ARCHETYPES:\\n{archetypes}"
+        )
+    if genre_key == "Describing a Character":
+        return "CHARACTERISATION FRAMEWORK (STEAL): " + "; ".join(
+            f"{code}={name}: {detail}" for code, (name, detail) in STEAL_ASPECTS.items()
+        )
+    return ""
+
+
+def block_guidance_context(subgenre, age_band, block_names=None):
+    age_key = age_key_for_band(age_band)
+    blocks = block_names or ()
+    chunks = []
+    for block_name in blocks:
+        subsections = get_subsections(subgenre, block_name)
+        checklist = get_checklist(subgenre, age_key, block_name)
+        if subsections:
+            chunks.append(f"{block_name} subsections: " + "; ".join(subsections))
+        if checklist:
+            chunks.append(f"{block_name} checklist: " + "; ".join(checklist))
+    features = get_features(subgenre, age_key)
+    if features:
+        chunks.append("Genre features:\\n" + "\\n".join(f"- {item}" for item in features))
+    framework = genre_framework_context(subgenre)
+    if framework:
+        chunks.append(framework)
+    return "\\n\\n".join(chunks)
+
+
+
 
 
 # ==================================================================
 # PROMPT BUILDERS
 # ==================================================================
 def block_feedback_prompt(age_band, subgenre, block_name, text):
+    guidance = block_guidance_context(subgenre, age_band, [block_name])
     return f"""
 You are a warm, encouraging writing coach working with a student in {age_band}.
-They are writing a {subgenre} piece. They just wrote the "{block_name}".
+They are writing a {subgenre.replace('::', ' — ')} piece. They just wrote the "{block_name}".
+
+Apply the following genre-specific criteria when giving feedback:
+{guidance}
 
 --- STUDENT WRITING ---
 {text}
@@ -1295,9 +3043,14 @@ Keep it under 80 words total, written for the student.
 
 
 def toolkit_prompt(age_band, genre, subgenre, block_names):
+    guidance = block_guidance_context(subgenre, age_band, block_names)
     return f"""
 You are preparing a Writer's Toolkit for a {age_band} student writing a
-{genre} piece in the {subgenre} genre.
+{genre} piece in the {subgenre.replace('::', ' — ')} genre.
+
+Use the detailed genre framework, block layouts, subsections and checklist below.
+Do not replace or simplify these genre-specific requirements:
+{guidance}
 
 Return ONLY JSON in this shape:
 {{
@@ -1316,9 +3069,13 @@ Return ONLY JSON in this shape:
 
 
 def worksheet_content_prompt(age_band, subgenre, title, block_names):
+    guidance = block_guidance_context(subgenre, age_band, block_names)
     return f"""
 Create printable-worksheet content for a {age_band} student writing a
-{subgenre} piece called "{title}".
+{subgenre.replace('::', ' — ')} piece called "{title}".
+
+Follow the genre-specific structure, subsections, features and checklist below:
+{guidance}
 
 For each block listed below, produce:
 - label: use the block name exactly as given
@@ -1351,53 +3108,51 @@ def piece_marking_prompt(age_band, genre, rubric_key, text, wc=None):
         f"Student age band: {age_band}",
         f"Genre: {genre}",
         "",
-        rubric["text"],
+        rubric.get("text", ""),
         "",
         MARKER_NOTES,
         "",
+        "STAGE 5 BAND DESCRIPTORS:",
     ]
 
-    bands = rubric.get("bands")
-    if bands:
-        parts.append("BAND DESCRIPTORS (use these to decide which band the response fits):")
-        parts.append("")
-        for band_name in ("top", "middle", "bottom"):
-            band = bands.get(band_name)
-            if not band:
-                continue
-            parts.append(f"--- {band_name.upper()} BAND ---")
-            for cat in ("Wc", "Wv", "Wg", "Ws", "Ww"):
-                lo, hi = band["range"][cat]
-                marker = f"[{lo}-{hi}]" if lo != hi else f"[{lo}]"
-                parts.append(
-                    f"{CATEGORY_ICONS[cat]} {CATEGORY_LABELS[cat]} {marker}: {band[cat]}"
-                )
-            parts.append("")
-        parts.append(
-            "Below the bottom band = 0-1 for Wc/Wg/Ws, 0-1 for Wv/Ww "
-            "(award 0 if the response does not meet the lowest criteria)."
-        )
+    for band_name in ("top", "middle", "bottom"):
+        band = rubric.get("bands", {}).get(band_name)
+        if not band:
+            continue
+        parts.append(f"--- {band_name.upper()} BAND ---")
+        for cat in ("Wc", "Wv", "Wg", "Ws", "Ww"):
+            lo, hi = band["range"][cat]
+            marker = f"[{lo}-{hi}]" if lo != hi else f"[{lo}]"
+            parts.append(f"{cat} {marker}: {band[cat]}")
         parts.append("")
 
+    parts.append("STAGE 6 SKILLS AUDIT (aspirational, one band above Stage 5):")
+    for cat, codes in STAGE6_CODES.items():
+        parts.append(f"\n{cat}:")
+        for code, meta in codes.items():
+            star = " (stretch)" if meta.get("stretch") else ""
+            parts.append(f"  {code}: {meta['text']}{star}")
+
     if wc is not None:
-        parts.append(f"WORD COUNT: {wc} words.")
+        parts.append(f"\nWORD COUNT: {wc} words.")
         if wc <= 20:
-            parts.append("-> This is 20 words or fewer. Score ALL categories as 0.")
+            parts.append("-> 20 words or fewer: score ALL categories as 0.")
         elif wc <= 60:
-            parts.append("-> This is 21-60 words. Total across all 5 categories must NOT exceed 7.")
+            parts.append("-> 21-60 words: total across all 5 categories must NOT exceed 7.")
         parts.append("")
 
     parts.append(AGE_BAND_GUIDANCE[age_band])
+    parts.append("")
+    parts.append("STUDENT WRITING TO MARK:")
+    parts.append(text)
     parts.append("")
     parts.append(
         'Return ONLY JSON in this shape (no prose outside JSON):\n'
         '{\n'
         '  "scores": {"Wc": <0-5>, "Wv": <0-3>, "Wg": <0-7>, "Ws": <0-7>, "Ww": <0-3>},\n'
         '  "band": "<top|middle|bottom|below>",\n'
-        '  "comments": {\n'
-        '    "Wc": "<one sentence>", "Wv": "<one sentence>", "Wg": "<one sentence>",\n'
-        '    "Ws": "<one sentence>", "Ww": "<one sentence>"\n'
-        '  },\n'
+        '  "audit": {"6Wc.01": "met|partial|not met|na", ...},\n'
+        '  "comments": {"Wc": "...", "Wv": "...", "Wg": "...", "Ws": "...", "Ww": "..."},\n'
         '  "strengths": "<2 sentences>",\n'
         '  "improvements": "<2 sentences>",\n'
         '  "wish": "<one actionable next step>"\n'
@@ -1450,14 +3205,22 @@ def render_mascot(width=110, mood="happy"):
 
 
 def render_genre_features(subgenre):
-    """Coloured card listing what makes a great piece in this genre."""
-    features = GENRE_FEATURES.get(subgenre)
+    """Render the detailed age-banded guidance for the selected genre."""
+    age_band = st.session_state.get("profile", {}).get("age_band", AGE_BANDS[0])
+    age_key = "lower" if age_band.startswith("Lower") else "upper"
+    genre_key = canonical_subgenre(subgenre)
+
+    if genre_key.startswith("Persuasive Writing::"):
+        features = PERSUASIVE_FEATURES.get(age_key, ())
+    else:
+        features = GENRE_FEATURES.get(genre_key, {}).get(age_key, ())
+
     if not features:
         return
     items_html = "".join(f"<li>{f}</li>" for f in features)
     st.markdown(
         f"<div class='features-card'>"
-        f"<div class='features-title'>📋 What makes a great {subgenre}?</div>"
+        f"<div class='features-title'>📋 What makes a great {genre_key.replace('::', ' — ')}?</div>"
         f"<ul>{items_html}</ul>"
         f"</div>",
         unsafe_allow_html=True,
@@ -1465,8 +3228,18 @@ def render_genre_features(subgenre):
 
 
 def render_block_checklist(subgenre, block_name, piece_id):
-    """Interactive checklist shown above each block's writing area."""
-    checklist = BLOCK_CHECKLISTS.get(subgenre, {}).get(block_name)
+    """Render the age-banded checklist for the selected genre block."""
+    age_band = st.session_state.get("profile", {}).get("age_band", AGE_BANDS[0])
+    age_key = "lower" if age_band.startswith("Lower") else "upper"
+    genre_key = canonical_subgenre(subgenre)
+
+    if genre_key in SKILL_FOCUS_GENRES:
+        checklist = SKILL_FOCUS_CHECKLISTS.get(genre_key, {}).get(age_key, {}).get(block_name, ())
+    elif genre_key in FICTION_GENRES:
+        checklist = FICTION_BLOCK_CHECKLISTS.get(block_name, {}).get(age_key, ())
+    else:
+        checklist = BLOCK_CHECKLISTS.get(genre_key, {}).get(age_key, {}).get(block_name, ())
+
     if not checklist:
         return
 
@@ -1525,7 +3298,6 @@ def render_auth_section():
             except Exception:
                 pass
             st.session_state["user"] = None
-            st.rerun()
     else:
         with st.expander("🔐 Sign in to save progress"):
             email = st.text_input("Email", key="auth_email")
@@ -1552,25 +3324,28 @@ def render_auth_section():
 
 def render_sidebar():
     with st.sidebar:
-        render_mascot(width=110)
+        try:
+            mascot_html = mascot_img(size=54)
+        except Exception:
+            mascot_html = FALLBACK_MASCOT_SVG
         st.markdown(
-            f"<div style='text-align:center;font-family:Baloo 2,cursive;"
-            f"font-size:1.4rem;font-weight:800;color:#4a3a2a;margin-top:0.3rem;'>"
-            f"{MASCOT_NAME}</div>",
+            "<div class='sb-brand'>" + mascot_html +
+            "<div><div class='sb-brand-name'>The AI Writing Adventure</div>"
+            f"<div class='sb-brand-sub'>with {MASCOT_NAME} the AI Pen</div></div></div>",
             unsafe_allow_html=True,
         )
-        st.caption("Your writing companion")
 
-        st.markdown("#### 🎯 Mode")
+        st.markdown("<div class='sb-label'>Explore</div>", unsafe_allow_html=True)
         modes = [MODE_DOJO, MODE_ARENA, MODE_VAULT, MODE_TRACKER]
         st.session_state["app_mode"] = st.radio(
-            "Mode",
+            "Section",
             modes,
             index=modes.index(st.session_state["app_mode"]),
             label_visibility="collapsed",
         )
 
-        st.markdown("#### 👤 Profile")
+        st.markdown("<div class='sb-label'>Your profile</div>", unsafe_allow_html=True)
+        chip = st.empty()
         st.session_state["profile"]["name"] = st.text_input(
             "Your name", value=st.session_state["profile"]["name"]
         )
@@ -1578,6 +3353,15 @@ def render_sidebar():
             "Age band",
             AGE_BANDS,
             index=AGE_BANDS.index(st.session_state["profile"]["age_band"]),
+        )
+        shown_name = st.session_state["profile"]["name"].strip() or "Young Writer"
+        chip.markdown(
+            "<div class='sb-profile'>"
+            f"<div class='sb-avatar'>{_html.escape(shown_name[0].upper())}</div>"
+            f"<div><div class='sb-pname'>{_html.escape(shown_name)}</div>"
+            f"<div class='sb-pband'>{_html.escape(st.session_state['profile']['age_band'])}</div></div>"
+            "</div>",
+            unsafe_allow_html=True,
         )
 
         st.divider()
@@ -1598,8 +3382,12 @@ def start_new_piece_ui():
     else:
         group = st.radio("Category:", list(NON_FICTION_SUBGENRES.keys()))
         subgenre = st.selectbox("Subgenre:", NON_FICTION_SUBGENRES[group])
+        if subgenre == "Persuasive Writing":
+            layout = st.selectbox("Persuasive format:", PERSUASIVE_LAYOUTS)
+            subgenre = f"Persuasive Writing::{layout}"
         genre = "Non-Fiction"
 
+    display_genre = subgenre.replace("::", " — ")
     st.caption(f"Your blocks will be: {', '.join(get_blocks(subgenre))}")
 
     if st.button("🚀 Start writing", use_container_width=True):
@@ -1609,7 +3397,7 @@ def start_new_piece_ui():
             "genre": genre,
             "subgenre": subgenre,
             "created_at": time.time(),
-            "title": f"{subgenre} piece",
+            "title": f"{display_genre} piece",
         }
         st.rerun()
 
@@ -1700,7 +3488,7 @@ def evaluate_full_piece(piece, block_names):
     full_text = "\n\n".join(
         f"**{b}**\n{st.session_state['drafts'].get(b, '')}" for b in block_names
     )
-    rubric_key = "Fiction (Story)" if piece["genre"] == "Fiction" else "Non-Fiction"
+    rubric_key = "Fiction (Story)" if piece["genre"] == "Fiction" and canonical_subgenre(piece["subgenre"]) not in SKILL_FOCUS_GENRES else "Non-Fiction"
     wc = word_count(full_text)
     with st.spinner("Marking your piece..."):
         prompt = piece_marking_prompt(
@@ -1729,6 +3517,7 @@ def evaluate_full_piece(piece, block_names):
         result = {
             "scores": scores,
             "comments": data.get("comments", {}),
+            "audit": data.get("audit", {}),
             "band": data.get("band", ""),
             "word_count": wc,
             "word_count_note": wc_note,
@@ -1878,8 +3667,7 @@ def render_marks(result):
 
 
 def dojo_ui():
-    st.title("🧙‍♂️ Writing Dojo")
-    st.caption("Build your piece one block at a time — Inky will coach you.")
+    render_universe_hero(MODE_DOJO)
 
     piece = st.session_state.get("dojo_piece")
     if piece is None:
@@ -1888,7 +3676,7 @@ def dojo_ui():
 
     hc1, hc2 = st.columns([3, 1])
     with hc1:
-        st.markdown(f"### {SUBGENRE_ICONS.get(piece['subgenre'], '📝')} {piece['subgenre']}")
+        st.markdown(f"### {SUBGENRE_ICONS.get(piece['subgenre'], '📝')} {piece['subgenre'].replace('::', ' — ')}")
         st.caption(f"{piece['genre']} · {st.session_state['profile']['age_band']}")
     with hc2:
         if st.button("🔄 New piece", use_container_width=True):
@@ -1994,6 +3782,7 @@ def process_arena_submission(genre, rubric_key, pasted_text, images):
         result = {
             "scores": scores,
             "comments": data.get("comments", {}),
+            "audit": data.get("audit", {}),
             "band": data.get("band", ""),
             "word_count": wc,
             "word_count_note": wc_note,
@@ -2008,14 +3797,14 @@ def process_arena_submission(genre, rubric_key, pasted_text, images):
             "total": sum(scores.values()),
             "max_total": sum(max_scores.values()),
         }
+        piece_entry = {"id": uuid.uuid4().hex[:8], **result}
         st.session_state["arena_result"] = result
-        st.session_state["pieces"].append({"id": uuid.uuid4().hex[:8], **result})
+        st.session_state["pieces"].append(piece_entry)
+        save_progress_to_supabase(piece_entry)
         st.rerun()
 
-
 def arena_ui():
-    st.title("🏆 Marking Arena")
-    st.caption("Upload a photo of handwritten work, or paste your writing, to get a Cambridge-style mark.")
+    render_universe_hero(MODE_ARENA)
 
     genre = st.radio("What kind of writing is it?", ["Fiction", "Non-Fiction"], horizontal=True)
     rubric_key = "Fiction (Story)" if genre == "Fiction" else "Non-Fiction"
@@ -2069,8 +3858,7 @@ QUIZ_THEMES = (
 
 
 def vault_ui():
-    st.title("📖 Vocabulary Vault")
-    st.caption("Grow your word power with quick quizzes.")
+    render_universe_hero(MODE_VAULT)
 
     qs = st.session_state["quiz_state"]
     if qs is None:
@@ -2102,6 +3890,9 @@ def vault_ui():
     if idx >= total:
         st.balloons()
         st.success(f"🎉 Quiz complete! Score: {qs['score']} / {total}")
+        if not qs.get("saved"):
+            save_vocab_quiz_to_supabase(qs["theme"], qs["score"], total, qs["answers"])
+            qs["saved"] = True
         for a in qs["answers"]:
             icon = "✅" if a["correct"] else "❌"
             st.markdown(f"{icon} **{a['word']}** — {a['explanation']}")
@@ -2138,8 +3929,13 @@ def vault_ui():
 # TRACKER
 # ==================================================================
 def tracker_ui():
-    st.title("📈 My Progress")
+    render_universe_hero(MODE_TRACKER)
     pieces = st.session_state.get("pieces", [])
+    if not pieces:
+        loaded = load_progress_from_supabase()
+        if loaded:
+            st.session_state["pieces"] = loaded
+            pieces = loaded
     if not pieces:
         st.info("No pieces yet. Finish a Dojo piece or mark work in the Arena to see your progress!")
         return
@@ -2185,9 +3981,9 @@ def tracker_ui():
 # MAIN
 # ==================================================================
 def main():
-    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
     render_sidebar()
     mode = st.session_state["app_mode"]
+    st.markdown(BASE_CSS + universe_css(mode), unsafe_allow_html=True)
 
     if mode == MODE_DOJO:
         dojo_ui()
