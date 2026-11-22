@@ -8,6 +8,7 @@ import io
 import json
 import re
 import sys
+import random
 import time
 import uuid
 from urllib.parse import urlparse
@@ -39,6 +40,7 @@ st.set_page_config(
 # ------------------------------------------------------------------
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "openrouter/free"
+FALLBACK_MODEL = "google/gemini-2.5-flash-lite"  # used only when the first model fails
 MIN_WORDS_TO_EVALUATE = 20
 MIN_WORDS_FOR_FEEDBACK = 5
 MAX_IMAGE_SIDE = 1600
@@ -47,6 +49,8 @@ MAX_IMAGES = 4
 MODE_DOJO = "🧙‍♂️ Spell Workshop"
 MODE_ARENA = "🏆 Marking Arena"
 MODE_VAULT = "📖 Vocabulary Vault"
+MODE_GRAMMAR = "✏️ Grammar and Punctuation"
+MODE_LANGUAGE = "🎭 Language Arts"
 MODE_TRACKER = "🔭 My Star Chart"
 
 AGE_BANDS = ("Upper Primary (Grades 4-6)", "Lower Primary (Grades 1-3)")
@@ -1902,13 +1906,12 @@ small, .stCaption, [data-testid="stCaptionContainer"] { color: var(--muted) !imp
   line-height: 1.1; color: #fff !important;
 }
 .uni-hero .uni-hero-sub { color: rgba(255,255,255,.94) !important; font-size: 1rem; margin-top: .25rem; line-height: 1.4; }
-.uni-hero .uni-hero-place {
-  margin-left: auto; flex: 0 0 auto; padding: .35rem .85rem; border-radius: 999px; white-space: nowrap;
-  background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.5);
-  font-weight: 700; font-size: .88rem; color: #fff !important;
-}
 
 /* ---------- Cards ---------- */
+[data-testid="stVerticalBlockBorderWrapper"] {
+  border: 1.5px solid var(--line) !important; border-radius: 18px !important; background: #fff;
+  box-shadow: 0 4px 14px rgba(40,34,90,.05);
+}
 [data-testid="stExpander"] {
   border: 1.5px solid var(--line) !important; background: #fff !important; border-radius: 18px !important;
   box-shadow: 0 4px 14px rgba(40,34,90,.05); overflow: hidden;
@@ -2053,7 +2056,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [role="radio"
   .block-container, [data-testid="stMainBlockContainer"] { padding: 1.1rem 1rem 2rem !important; border-radius: 22px; width: calc(100% - 1.5rem) !important; }
   .stTextArea textarea { font-size: 1.2rem !important; padding-left: 56px !important; }
   .uni-hero { flex-wrap: wrap; }
-  .uni-hero .uni-hero-place { margin-left: 0; }
 }
 </style>
 """
@@ -2062,7 +2064,6 @@ UNIVERSES = {
     MODE_DOJO: {
         "icon": "🧙‍♂️",
         "title": "Spell Workshop",
-        "place": "Starlit Meadow",
         "tagline": "Build your piece one block at a time, with Inky by your side.",
         "css": """
 :root { --accent:#6b63d9; --accent-light:#7a72e6; --accent-dark:#4a43b0; --accent-soft:#eeecff; --hero-a:#3d3499; --hero-b:#8a63d8; }
@@ -2095,7 +2096,6 @@ UNIVERSES = {
     MODE_ARENA: {
         "icon": "🏆",
         "title": "Marking Arena",
-        "place": "Sunset Stadium",
         "tagline": "Upload a photo of handwritten work, or paste your writing, to get a Cambridge-style mark.",
         "css": """
 :root { --accent:#d0431c; --accent-light:#de5a32; --accent-dark:#a83214; --accent-soft:#fff0e6; --hero-a:#c4302b; --hero-b:#ff9a3c; }
@@ -2120,7 +2120,6 @@ UNIVERSES = {
     MODE_VAULT: {
         "icon": "📖",
         "title": "Vocabulary Vault",
-        "place": "Crystal Cave",
         "tagline": "Build a stronger word bank with fresh, bite-sized vocabulary challenges.",
         "css": """
 :root { --accent:#0b7f72; --accent-light:#0f8f7e; --accent-dark:#086256; --accent-soft:#e2f7f3; --hero-a:#0a5d6b; --hero-b:#22b99c; }
@@ -2152,10 +2151,166 @@ UNIVERSES = {
 }
 """,
     },
+    MODE_GRAMMAR: {
+        "icon": "✏️",
+        "title": "Grammar and Punctuation",
+        "tagline": "Learn the rule, then practise it with quick questions.",
+        "css": """
+:root { --accent:#be185d; --accent-light:#db2777; --accent-dark:#9d174d; --accent-soft:#fdecf4; --hero-a:#9d174d; --hero-b:#f472b6; }
+.stApp { background: linear-gradient(180deg, #5b2a86 0%, #b04fa0 36%, #f48fb1 68%, #ffd7b5 100%) !important; }
+.stApp::before {
+  background:
+    radial-gradient(circle at 50% 100%, rgba(255,236,179,.75) 0 90px, rgba(255,236,179,.28) 91px 240px, transparent 241px),
+    radial-gradient(3px 3px at 30px 40px, rgba(255,255,255,.9), transparent) 0 0 / 210px 160px,
+    radial-gradient(2.5px 2.5px at 120px 100px, rgba(255,214,235,.95), transparent) 0 0 / 210px 160px,
+    radial-gradient(3.5px 3.5px at 170px 20px, rgba(255,255,255,.85), transparent) 0 0 / 210px 160px,
+    radial-gradient(2.5px 2.5px at 60px 140px, rgba(255,200,225,.9), transparent) 0 0 / 210px 160px,
+    radial-gradient(3px 3px at 90px 60px, rgba(255,255,255,.8), transparent) 0 0 / 290px 220px,
+    radial-gradient(2.5px 2.5px at 230px 170px, rgba(255,214,235,.9), transparent) 0 0 / 290px 220px;
+}
+.stApp::after {
+  height: 36vh;
+  background:
+    radial-gradient(circle 52px at 5vw 52%, #f9a8d4 0 98%, transparent 100%),
+    radial-gradient(circle 66px at 10vw 40%, #f472b6 0 98%, transparent 100%),
+    radial-gradient(circle 48px at 15vw 55%, #fbcfe8 0 98%, transparent 100%),
+    linear-gradient(#4a1a3a, #4a1a3a) calc(10vw - 6px) 100% / 12px 46% no-repeat,
+    radial-gradient(circle 46px at 35vw 62%, #fbcfe8 0 98%, transparent 100%),
+    radial-gradient(circle 60px at 40vw 50%, #ec4899 0 98%, transparent 100%),
+    radial-gradient(circle 44px at 45vw 64%, #f9a8d4 0 98%, transparent 100%),
+    linear-gradient(#4a1a3a, #4a1a3a) calc(40vw - 6px) 100% / 12px 40% no-repeat,
+    radial-gradient(circle 54px at 80vw 50%, #f9a8d4 0 98%, transparent 100%),
+    radial-gradient(circle 68px at 86vw 38%, #f472b6 0 98%, transparent 100%),
+    radial-gradient(circle 50px at 92vw 54%, #fbcfe8 0 98%, transparent 100%),
+    linear-gradient(#4a1a3a, #4a1a3a) calc(86vw - 6px) 100% / 12px 48% no-repeat,
+    radial-gradient(90% 38% at 25% 100%, #6b2a5a 0 98%, transparent 100%),
+    radial-gradient(80% 32% at 80% 100%, #5a2150 0 98%, transparent 100%);
+}
+""",
+    },
+    MODE_LANGUAGE: {
+        "icon": "🎭",
+        "title": "Language Arts",
+        "tagline": "Build your word power: meanings, word choices and imagery.",
+        "css": """
+:root { --accent:#15803d; --accent-light:#178f45; --accent-dark:#0f5f2d; --accent-soft:#e8f6ec; --hero-a:#0f5f2d; --hero-b:#3fae6a; }
+.stApp { background: linear-gradient(180deg, #07211c 0%, #0d3b2e 48%, #1d6e48 100%) !important; }
+.stApp::before {
+  background:
+    radial-gradient(circle at 88% 14%, #fff6d4 0 30px, rgba(255,246,212,.26) 31px 58px, rgba(255,246,212,.07) 59px 100px, transparent 101px),
+    radial-gradient(3px 3px at 16% 70%, #ffe58a 0 60%, transparent 100%),
+    radial-gradient(3px 3px at 30% 80%, #ffe58a 0 60%, transparent 100%),
+    radial-gradient(3px 3px at 52% 74%, #ffe58a 0 60%, transparent 100%),
+    radial-gradient(3px 3px at 70% 84%, #ffe58a 0 60%, transparent 100%),
+    radial-gradient(3px 3px at 84% 66%, #ffe58a 0 60%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 30px 40px, rgba(255,255,255,.9), transparent) 0 0 / 250px 190px,
+    radial-gradient(1.2px 1.2px at 140px 100px, rgba(220,255,235,.9), transparent) 0 0 / 250px 190px,
+    radial-gradient(1.4px 1.4px at 200px 20px, #fff, transparent) 0 0 / 250px 190px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 70%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 70%, transparent 100%);
+}
+.stApp::after {
+  height: 44vh;
+  background-image:
+    conic-gradient(from 143.1deg at 50% 0%, #0b3d2e 0deg 73.7deg, transparent 73.7deg),
+    conic-gradient(from 146.3deg at 50% 0%, #0b3d2e 0deg 67.4deg, transparent 67.4deg),
+    conic-gradient(from 150.6deg at 50% 0%, #0b3d2e 0deg 58.9deg, transparent 58.9deg),
+    linear-gradient(#2b1a12, #2b1a12),
+    conic-gradient(from 143.1deg at 50% 0%, #0f4a35 0deg 73.7deg, transparent 73.7deg),
+    conic-gradient(from 146.3deg at 50% 0%, #0f4a35 0deg 67.4deg, transparent 67.4deg),
+    conic-gradient(from 150.6deg at 50% 0%, #0f4a35 0deg 58.9deg, transparent 58.9deg),
+    linear-gradient(#2b1a12, #2b1a12),
+    conic-gradient(from 143.1deg at 50% 0%, #0c402f 0deg 73.7deg, transparent 73.7deg),
+    conic-gradient(from 146.3deg at 50% 0%, #0c402f 0deg 67.4deg, transparent 67.4deg),
+    conic-gradient(from 150.6deg at 50% 0%, #0c402f 0deg 58.9deg, transparent 58.9deg),
+    linear-gradient(#2b1a12, #2b1a12),
+    conic-gradient(from 143.1deg at 50% 0%, #104d37 0deg 73.7deg, transparent 73.7deg),
+    conic-gradient(from 146.3deg at 50% 0%, #104d37 0deg 67.4deg, transparent 67.4deg),
+    conic-gradient(from 150.6deg at 50% 0%, #104d37 0deg 58.9deg, transparent 58.9deg),
+    linear-gradient(#2b1a12, #2b1a12),
+    conic-gradient(from 143.1deg at 50% 0%, #0b3d2e 0deg 73.7deg, transparent 73.7deg),
+    conic-gradient(from 146.3deg at 50% 0%, #0b3d2e 0deg 67.4deg, transparent 67.4deg),
+    conic-gradient(from 150.6deg at 50% 0%, #0b3d2e 0deg 58.9deg, transparent 58.9deg),
+    linear-gradient(#2b1a12, #2b1a12),
+    conic-gradient(from 143.1deg at 50% 0%, #0f4a35 0deg 73.7deg, transparent 73.7deg),
+    conic-gradient(from 146.3deg at 50% 0%, #0f4a35 0deg 67.4deg, transparent 67.4deg),
+    conic-gradient(from 150.6deg at 50% 0%, #0f4a35 0deg 58.9deg, transparent 58.9deg),
+    linear-gradient(#2b1a12, #2b1a12),
+    conic-gradient(from 143.1deg at 50% 0%, #0c402f 0deg 73.7deg, transparent 73.7deg),
+    conic-gradient(from 146.3deg at 50% 0%, #0c402f 0deg 67.4deg, transparent 67.4deg),
+    conic-gradient(from 150.6deg at 50% 0%, #0c402f 0deg 58.9deg, transparent 58.9deg),
+    linear-gradient(#2b1a12, #2b1a12),
+    radial-gradient(80% 26% at 20% 100%, #082b21 0 98%, transparent 100%),
+    radial-gradient(70% 22% at 82% 100%, #06231b 0 98%, transparent 100%);
+  background-position:
+    left calc(5vw - 69px) bottom 25px,
+    left calc(5vw - 55px) bottom 80px,
+    left calc(5vw - 40px) bottom 129px,
+    left calc(5vw - 6px) bottom 0px,
+    left calc(13vw - 51px) bottom 19px,
+    left calc(13vw - 41px) bottom 60px,
+    left calc(13vw - 30px) bottom 95px,
+    left calc(13vw - 4px) bottom 0px,
+    left calc(30vw - 60px) bottom 22px,
+    left calc(30vw - 48px) bottom 70px,
+    left calc(30vw - 35px) bottom 112px,
+    left calc(30vw - 5px) bottom 0px,
+    left calc(47vw - 48px) bottom 18px,
+    left calc(47vw - 38px) bottom 56px,
+    left calc(47vw - 28px) bottom 90px,
+    left calc(47vw - 4px) bottom 0px,
+    left calc(63vw - 72px) bottom 26px,
+    left calc(63vw - 58px) bottom 84px,
+    left calc(63vw - 42px) bottom 134px,
+    left calc(63vw - 6px) bottom 0px,
+    left calc(80vw - 54px) bottom 20px,
+    left calc(80vw - 43px) bottom 63px,
+    left calc(80vw - 32px) bottom 101px,
+    left calc(80vw - 4px) bottom 0px,
+    left calc(94vw - 66px) bottom 24px,
+    left calc(94vw - 53px) bottom 77px,
+    left calc(94vw - 38px) bottom 123px,
+    left calc(94vw - 6px) bottom 0px,
+    0 0,
+    0 0;
+  background-size:
+    138px 92px,
+    110px 83px,
+    80px 71px,
+    12px 34px,
+    102px 68px,
+    82px 61px,
+    60px 53px,
+    8px 26px,
+    120px 80px,
+    96px 72px,
+    70px 62px,
+    10px 30px,
+    96px 64px,
+    77px 58px,
+    56px 50px,
+    8px 24px,
+    144px 96px,
+    115px 86px,
+    84px 74px,
+    12px 36px,
+    108px 72px,
+    86px 65px,
+    63px 56px,
+    9px 27px,
+    132px 88px,
+    106px 79px,
+    77px 68px,
+    11px 33px,
+    100% 100%,
+    100% 100%;
+  background-repeat: no-repeat;
+}
+""",
+    },
     MODE_TRACKER: {
         "icon": "🔭",
         "title": "My Star Chart",
-        "place": "Writer's Galaxy",
         "tagline": "Watch your writing grow, one star at a time.",
         "css": """
 :root { --accent:#5b5bd6; --accent-light:#7c7cf0; --accent-dark:#3e3eab; --accent-soft:#ecedff; --hero-a:#1a2a80; --hero-b:#7a4fd8; }
@@ -2198,7 +2353,6 @@ def render_universe_hero(mode: str) -> None:
         f"<div class='uni-hero-badge'>{u['icon']}</div>"
         f"<div><div class='uni-hero-title' role='heading' aria-level='1'>{u['title']}</div>"
         f"<div class='uni-hero-sub'>{u['tagline']}</div></div>"
-        f"<div class='uni-hero-place'>{u['place']}</div>"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -2238,7 +2392,7 @@ st.session_state.setdefault("dojo_piece", None)
 st.session_state.setdefault("user", None)
 st.session_state.setdefault("ws_content", {})
 
-if st.session_state.get("app_mode") not in (MODE_DOJO, MODE_ARENA, MODE_VAULT, MODE_TRACKER):
+if st.session_state.get("app_mode") not in (MODE_DOJO, MODE_ARENA, MODE_VAULT, MODE_GRAMMAR, MODE_LANGUAGE, MODE_TRACKER):
     st.session_state["app_mode"] = MODE_DOJO
 
 
@@ -2871,7 +3025,19 @@ def _log_magic_error(detail: str) -> None:
         pass
 
 
-def call_openrouter(messages, model=DEFAULT_MODEL, temperature=0.4, max_tokens=1500):
+def _is_credit_problem(status, text):
+    low = str(text or "").lower()
+    return status in (402, 429) or any(w in low for w in ("402", "429", "credit", "quota", "insufficient", "rate limit"))
+
+
+def call_openrouter(messages, model=DEFAULT_MODEL, temperature=0.4, max_tokens=1500,
+                    fallback_model=FALLBACK_MODEL, validate=None):
+    """Ask the model. Returns (text, None) or (None, friendly_error).
+
+    If the first model fails (error, timeout, empty reply, or validate(text) says the
+    reply is unusable, e.g. cut-off JSON), the same request is tried once on
+    fallback_model with a bigger token allowance.
+    """
     try:
         api_key = str(st.secrets["openrouter"]["api_key"]).strip()
     except Exception:
@@ -2886,35 +3052,66 @@ def call_openrouter(messages, model=DEFAULT_MODEL, temperature=0.4, max_tokens=1
         "HTTP-Referer": "https://ai-writing-adventure.app",
         "X-Title": "The Writing Adventure",
     }
-    payload = {
-        "model": model,
-        "messages": messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-    }
-    try:
-        resp = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=120)
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"], None
-    except requests.HTTPError as exc:
-        status = getattr(exc.response, "status_code", None)
-        body = ""
+    attempts = [(model, max_tokens, 60)]
+    if fallback_model and fallback_model != model:
+        attempts.append((fallback_model, min(int(max_tokens * 1.5), 6000), 90))
+
+    last_was_credit = False
+    for current_model, limit, timeout in attempts:
+        payload = {"model": current_model, "messages": messages, "temperature": temperature, "max_tokens": limit}
         try:
-            body = (exc.response.text or "")[:300]
-        except Exception:
-            body = ""
-        low = body.lower()
-        if status in (402, 429) or "credit" in low or "quota" in low or "insufficient" in low or "rate limit" in low:
-            return None, "🖋️ Inky is out of ink, be back shortly!"
-        _log_magic_error(f"OpenRouter error {status}: {body}")
-        return None, INK_SNAG_MSG
-    except Exception as exc:
-        msg = str(exc)
-        low = msg.lower()
-        if "402" in low or "429" in low or "credit" in low or "quota" in low or "insufficient" in low or "rate limit" in low:
-            return None, "🖋️ Inky is out of ink, be back shortly!"
-        _log_magic_error(f"OpenRouter call failed: {msg}")
-        return None, INK_SNAG_MSG
+            resp = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=timeout)
+            resp.raise_for_status()
+            choice = resp.json()["choices"][0]
+            text = ((choice.get("message") or {}).get("content") or "").strip()
+            if choice.get("finish_reason") == "length":
+                _log_magic_error(f"{current_model}: reply hit the {limit}-token limit")
+            if not text:
+                _log_magic_error(f"{current_model}: empty reply")
+                last_was_credit = False
+                continue
+            if validate and not validate(text):
+                _log_magic_error(f"{current_model}: reply was not usable. Start of reply: {text[:200]!r}")
+                last_was_credit = False
+                continue
+            return text, None
+        except requests.HTTPError as exc:
+            status = getattr(exc.response, "status_code", None)
+            try:
+                body = (exc.response.text or "")[:300]
+            except Exception:
+                body = ""
+            last_was_credit = _is_credit_problem(status, body)
+            _log_magic_error(f"{current_model}: OpenRouter error {status}: {body}")
+        except Exception as exc:
+            last_was_credit = _is_credit_problem(None, str(exc))
+            _log_magic_error(f"{current_model}: call failed: {exc}")
+    if last_was_credit:
+        return None, "🖋️ Inky is out of ink, be back shortly!"
+    return None, INK_SNAG_MSG
+
+
+def call_openrouter_json(messages, model=DEFAULT_MODEL, temperature=0.4, max_tokens=1500,
+                         fallback_model=FALLBACK_MODEL, required=()):
+    """Like call_openrouter, but the reply must hold usable JSON (with the `required` keys).
+
+    Returns (dict, None) or (None, friendly_error). A reply that is cut off or
+    garbled counts as a failure, so the fallback model gets a go.
+    """
+    found = {}
+
+    def _usable(text):
+        data = parse_json_response(text) or _loose_json(text)
+        if isinstance(data, dict) and data and all(k in data for k in required):
+            found["data"] = data
+            return True
+        return False
+
+    text, err = call_openrouter(messages, model=model, temperature=temperature, max_tokens=max_tokens,
+                                fallback_model=fallback_model, validate=_usable)
+    if err:
+        return None, err
+    return found["data"], None
 
 
 def parse_json_response(text):
@@ -3489,6 +3686,7 @@ def render_auth_section():
             st.session_state["quiz_state"] = None
             st.session_state.pop("vocab_words_owner", None)
             st.session_state["pieces"] = []
+            reset_practice_state()
             st.session_state["arena_result"] = None
             st.session_state["outputs"].pop("__evaluation__", None)
             st.session_state.pop("progress_owner", None)
@@ -3540,7 +3738,7 @@ def render_sidebar():
         )
 
         st.markdown("<div class='sb-label'>Magic map</div>", unsafe_allow_html=True)
-        modes = [MODE_DOJO, MODE_ARENA, MODE_VAULT, MODE_TRACKER]
+        modes = [MODE_DOJO, MODE_ARENA, MODE_VAULT, MODE_GRAMMAR, MODE_LANGUAGE, MODE_TRACKER]
         st.session_state["app_mode"] = st.radio(
             "Section",
             modes,
@@ -3603,10 +3801,9 @@ Return ONLY valid JSON:
 {AGE_BAND_GUIDANCE[age_band]}
 {SAFETY_RULES}
 """.strip()
-    text, err = call_openrouter([{"role": "user", "content": prompt}], max_tokens=300)
+    data, err = call_openrouter_json([{"role": "user", "content": prompt}], max_tokens=800, required=("writing_prompt",))
     if err:
         return None, err
-    data = parse_json_response(text)
     if not data or not data.get("writing_prompt"):
         return None, "Could not generate a writing prompt right now. Please try again."
     return data, None
@@ -3762,11 +3959,10 @@ def _generate_block_guide(piece, block_name):
             piece.get("writing_prompt", ""),
             block_name,
         )
-        text, err = call_openrouter([{"role": "user", "content": prompt}], max_tokens=1100)
+        data, err = call_openrouter_json([{"role": "user", "content": prompt}], max_tokens=2200)
         if err:
             st.error(err)
             return
-        data = parse_json_response(text)
         if not data:
             st.warning("The spellbook page came out blurry. Please try again.")
             return
@@ -3911,11 +4107,10 @@ def evaluate_full_piece(piece, block_names):
             st.session_state["profile"]["age_band"],
             piece["genre"], rubric_key, full_text, wc=wc,
         )
-        text, err = call_openrouter([{"role": "user", "content": prompt}], max_tokens=1500)
+        data, err = call_openrouter_json([{"role": "user", "content": prompt}], max_tokens=3000, required=("scores",))
         if err:
             st.error(err)
             return
-        data = parse_json_response(text)
         if not data:
             st.error("Could not read the marking result. Please try again.")
             return
@@ -3972,9 +4167,9 @@ def _make_worksheet_content(piece, block_names):
 
     with st.spinner("Inky is designing your worksheet..."):
         prompt = worksheet_content_prompt(age_band, piece["subgenre"], piece["title"], block_names)
-        text, err = call_openrouter([{"role": "user", "content": prompt}], max_tokens=2000)
+        data, err = call_openrouter_json([{"role": "user", "content": prompt}], max_tokens=3000, required=("blocks",))
 
-    if err or not text:
+    if err or not data:
         _log_magic_error(f"worksheet content failed: {err or 'empty response'}")
         st.warning("Inky couldn't find extra magic this time, so here is a basic worksheet.")
         data = {
@@ -3988,8 +4183,7 @@ def _make_worksheet_content(piece, block_names):
         cache[cache_key] = data
         return data
 
-    data = parse_json_response(text)
-    if not data or "blocks" not in data:
+    if "blocks" not in data:
         st.warning("Inky couldn't read his own notes this time, so here is a basic worksheet.")
         data = {
             "mission": f"Write a great {piece['subgenre']} piece.",
@@ -4228,11 +4422,10 @@ def process_arena_submission(genre, rubric_key, pasted_text, images):
             st.session_state["profile"]["age_band"],
             genre, rubric_key, transcribed, wc=wc,
         )
-        text, err = call_openrouter([{"role": "user", "content": prompt}], max_tokens=1500)
+        data, err = call_openrouter_json([{"role": "user", "content": prompt}], max_tokens=3000, required=("scores",))
         if err:
             st.error(err)
             return
-        data = parse_json_response(text)
         if not data:
             st.error("Could not read the marking result. Please try again.")
             return
@@ -4635,7 +4828,7 @@ Student writing:
 def _find_words_in_writing(token, text):
     with st.spinner("Inky is looking for useful words in your writing..."):
         prompt = word_finder_prompt(st.session_state["profile"]["age_band"], text)
-        reply, err = call_openrouter([{"role": "user", "content": prompt}], max_tokens=1200)
+        reply, err = call_openrouter([{"role": "user", "content": prompt}], max_tokens=2000)
     if err:
         st.error(err)
         return
@@ -4813,6 +5006,323 @@ def vault_ui():
 
 
 # ==================================================================
+# PRACTICE SECTIONS: GRAMMAR AND PUNCTUATION, LANGUAGE ARTS
+# ==================================================================
+# The lessons live in their own files (same folder as this one) so they are easy to edit:
+#   grammar_lessons.py   (grammar and punctuation)
+#   language_lessons.py  (vocabulary and language)
+try:
+    from grammar_lessons import LEVELS as GRAMMAR_LEVELS
+except Exception as _gp_exc:  # keep the rest of the app working if a file is missing
+    GRAMMAR_LEVELS = None
+    print(f"[inky] grammar lessons could not be loaded: {_gp_exc}", file=sys.stderr)
+try:
+    from language_lessons import LEVELS as LANGUAGE_LEVELS
+except Exception as _gp_exc:
+    LANGUAGE_LEVELS = None
+    print(f"[inky] language lessons could not be loaded: {_gp_exc}", file=sys.stderr)
+
+PRACTICE_SECTIONS = {
+    "grammar": {"mode": MODE_GRAMMAR, "levels": GRAMMAR_LEVELS, "file": "grammar_lessons.py"},
+    "language": {"mode": MODE_LANGUAGE, "levels": LANGUAGE_LEVELS, "file": "language_lessons.py"},
+}
+
+
+def _gp_key(level, lesson_id):
+    return f"{level}::{lesson_id}"
+
+
+def _gp_text(text):
+    """Lesson text as markdown. Keeps **bold** and protects ___ gaps."""
+    return str(text).replace("___", "\\_\\_\\_")
+
+
+# ---- progress (stars) -------------------------------------------------
+# One table holds the scores for every practice section. Lesson ids are unique
+# across sections, so they never clash.
+def save_grammar_result_to_supabase(level, lesson_id, score, total):
+    uid = current_user_id()
+    if not uid:
+        return
+    client, err = init_supabase()
+    if err or not client:
+        return
+    try:
+        client.table("grammar_practice").insert({
+            "user_id": uid, "level": level, "lesson_id": lesson_id,
+            "score": int(score), "total": int(total),
+        }).execute()
+    except Exception as exc:
+        _log_magic_error(f"practice progress save failed: {exc}")
+
+
+def load_grammar_progress_from_supabase():
+    uid = current_user_id()
+    if not uid:
+        return {}
+    client, err = init_supabase()
+    if err or not client:
+        return {}
+    try:
+        rows = client.table("grammar_practice").select("*").eq("user_id", uid).execute().data or []
+    except Exception as exc:
+        _log_magic_error(f"practice progress load failed: {exc}")
+        return {}
+    progress = {}
+    for row in rows:
+        try:
+            score, total = int(row.get("score") or 0), max(int(row.get("total") or 1), 1)
+        except Exception:
+            continue
+        key = _gp_key(row.get("level"), row.get("lesson_id"))
+        cur = progress.get(key)
+        if cur is None:
+            progress[key] = {"best": score, "total": total, "tries": 1}
+        else:
+            cur["tries"] += 1
+            if score / total > cur["best"] / max(cur["total"], 1):
+                cur["best"], cur["total"] = score, total
+    return progress
+
+
+def ensure_grammar_progress_loaded():
+    owner = current_user_id()
+    if st.session_state.get("gp_progress_owner", "unset") != owner:
+        st.session_state["gp_progress"] = load_grammar_progress_from_supabase() if owner else {}
+        st.session_state["gp_progress_owner"] = owner
+    st.session_state.setdefault("gp_progress", {})
+
+
+def record_grammar_result(level, lesson_id, score, total):
+    progress = st.session_state.setdefault("gp_progress", {})
+    key = _gp_key(level, lesson_id)
+    cur = progress.get(key)
+    if cur is None:
+        progress[key] = {"best": score, "total": total, "tries": 1}
+    else:
+        cur["tries"] += 1
+        if score / max(total, 1) > cur["best"] / max(cur["total"], 1):
+            cur["best"], cur["total"] = score, total
+    save_grammar_result_to_supabase(level, lesson_id, score, total)
+
+
+# ---- practice runs ----------------------------------------------------
+def gp_new_run(level, lesson):
+    """Start a fresh practice run: shuffled questions, shuffled answers."""
+    questions = []
+    for q in lesson["questions"]:
+        options = list(q["options"])
+        correct = options[0]  # lessons list the correct answer first
+        random.shuffle(options)
+        questions.append({"kind": q["kind"], "q": q["q"], "options": options, "correct": correct, "why": q["why"]})
+    random.shuffle(questions)
+    return {
+        "id": uuid.uuid4().hex[:8], "level": level, "lesson_id": lesson["id"], "questions": questions,
+        "index": 0, "score": 0, "checked": False, "choice": None, "answers": [], "saved": False,
+    }
+
+
+def reset_practice_state():
+    """Clear every practice section's lesson and run (used when someone signs out)."""
+    for sec in PRACTICE_SECTIONS:
+        st.session_state[f"{sec}_lesson"] = None
+        st.session_state[f"{sec}_run"] = None
+    st.session_state["gp_progress"] = {}
+    st.session_state.pop("gp_progress_owner", None)
+
+
+def _gp_level_picker(sec, levels):
+    labels = {key: lvl["label"] for key, lvl in levels.items()}
+    age = st.session_state["profile"]["age_band"]
+    if st.session_state.get(f"{sec}_age_band") != age:  # start on the student's own level
+        st.session_state[f"{sec}_age_band"] = age
+        st.session_state[f"{sec}_level"] = "lower" if age == AGE_BANDS[1] else "upper"
+    st.session_state.setdefault(f"{sec}_level", "upper")
+    return st.radio(
+        "Choose your level", list(labels), format_func=lambda k: labels[k], horizontal=True, key=f"{sec}_level",
+    )
+
+
+def _gp_teach(lesson):
+    st.markdown(f"**{_gp_text(lesson['intro'])}**")
+    for rule in lesson["rules"]:
+        with st.container(border=True):
+            st.markdown(f"**{_gp_text(rule['title'])}**")
+            st.markdown(_gp_text(rule["text"]))
+            for example in rule.get("examples", []):
+                st.markdown(f"- *{_gp_text(example)}*")
+    if lesson.get("tip"):
+        st.info(f"💡 {lesson['tip']}")
+
+
+def _gp_lesson_list(sec, level, lessons):
+    progress = st.session_state["gp_progress"]
+    practised = sum(1 for l in lessons if progress.get(_gp_key(level, l["id"]), {}).get("tries"))
+    st.progress(practised / len(lessons), text=f"{practised} of {len(lessons)} lessons practised")
+    if not current_user_id():
+        st.caption("Sign in from the sidebar to keep your stars for next time. Until then they only last for this visit.")
+    cols = st.columns(2)
+    for i, lesson in enumerate(lessons):
+        with cols[i % 2]:
+            with st.container(border=True):
+                st.markdown(f"### {lesson['emoji']} {lesson['title']}")
+                st.caption(lesson["blurb"])
+                p = progress.get(_gp_key(level, lesson["id"]))
+                if p and p.get("tries"):
+                    medal = " 🏅" if p["best"] >= p["total"] else ""
+                    st.markdown(f"⭐ Best score: **{p['best']} / {p['total']}**{medal}")
+                else:
+                    st.caption("Not started yet")
+                st.caption("Framework: " + " · ".join(lesson["codes"]))
+                if st.button("Open lesson", key=f"{sec}_open_{lesson['id']}", use_container_width=True, type="primary"):
+                    st.session_state[f"{sec}_lesson"] = lesson["id"]
+                    st.session_state[f"{sec}_run"] = None
+                    st.rerun()
+
+
+def _gp_question(sec, run):
+    questions = run["questions"]
+    idx = run["index"]
+    q = questions[idx]
+    st.progress(idx / len(questions), text=f"Question {idx + 1} of {len(questions)}")
+    st.caption("🔍 Spot it" if q["kind"] == "spot" else "✍️ Use it")
+    st.markdown(f"#### {_gp_text(q['q'])}")
+
+    if not run["checked"]:
+        choice = st.radio(
+            "Choose your answer", q["options"], index=None,
+            key=f"{sec}_choice_{run['id']}_{idx}", label_visibility="collapsed",
+        )
+        if st.button("Check answer", type="primary", use_container_width=True, key=f"{sec}_check_{run['id']}_{idx}"):
+            if choice is None:
+                st.warning("Choose an answer first.")
+                return
+            correct = choice == q["correct"]
+            run["answers"].append({"q": q["q"], "chosen": choice, "correct_text": q["correct"], "correct": correct, "why": q["why"]})
+            if correct:
+                run["score"] += 1
+            run["checked"], run["choice"] = True, choice
+            st.rerun()
+        return
+
+    for opt in q["options"]:
+        if opt == q["correct"]:
+            st.markdown(f"✅ **{_md_safe(opt)}**")
+        elif opt == run["choice"]:
+            st.markdown(f"❌ {_md_safe(opt)}")
+        else:
+            st.markdown(f"◻️ {_md_safe(opt)}")
+    if run["choice"] == q["correct"]:
+        st.success(f"🎉 Correct! {q['why']}")
+    else:
+        st.error(f"Not quite. {q['why']}")
+    last = idx + 1 >= len(questions)
+    if st.button("See my results" if last else "Next question →", type="primary", use_container_width=True, key=f"{sec}_next_{run['id']}_{idx}"):
+        run["index"] += 1
+        run["checked"], run["choice"] = False, None
+        st.rerun()
+
+
+def _gp_results(sec, level, lesson, lessons, run):
+    score, total = run["score"], len(run["questions"])
+    if not run["saved"]:
+        record_grammar_result(level, lesson["id"], score, total)
+        run["saved"] = True
+    ratio = score / max(total, 1)
+    st.progress(1.0, text="Practice complete")
+    if ratio >= 0.85:
+        st.success(f"🏅 Brilliant! You scored {score} out of {total}.")
+        if not run.get("celebrated"):
+            run["celebrated"] = True
+            st.balloons()
+    elif ratio >= 0.6:
+        st.success(f"👏 Well done! You scored {score} out of {total}.")
+    else:
+        st.info(f"💪 You scored {score} out of {total}. Read the rules again, then try once more.")
+
+    wrong = [a for a in run["answers"] if not a["correct"]]
+    if wrong:
+        st.subheader("Let’s look at these again")
+        for a in wrong:
+            with st.container(border=True):
+                st.markdown(f"**{_gp_text(a['q'])}**")
+                st.markdown(f"❌ Your answer: {_md_safe(a['chosen'])}")
+                st.markdown(f"✅ Correct answer: **{_md_safe(a['correct_text'])}**")
+                st.caption(a["why"])
+    else:
+        st.markdown("Every answer was right. Try another lesson to keep the stars coming!")
+
+    ids = [l["id"] for l in lessons]
+    nxt = ids[ids.index(lesson["id"]) + 1] if lesson["id"] in ids and ids.index(lesson["id"]) + 1 < len(ids) else None
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("🔁 Try again", use_container_width=True, key=f"{sec}_again_{run['id']}"):
+            st.session_state[f"{sec}_run"] = gp_new_run(level, lesson)
+            st.rerun()
+    with c2:
+        if st.button("📚 All lessons", use_container_width=True, key=f"{sec}_all_{run['id']}"):
+            st.session_state[f"{sec}_lesson"], st.session_state[f"{sec}_run"] = None, None
+            st.rerun()
+    with c3:
+        if nxt and st.button("➡️ Next lesson", use_container_width=True, key=f"{sec}_nextlesson_{run['id']}"):
+            st.session_state[f"{sec}_lesson"], st.session_state[f"{sec}_run"] = nxt, None
+            st.rerun()
+
+
+def _gp_lesson_page(sec, level, lesson, lessons):
+    if st.button("← All lessons", key=f"{sec}_back"):
+        st.session_state[f"{sec}_lesson"], st.session_state[f"{sec}_run"] = None, None
+        st.rerun()
+    st.markdown(f"## {lesson['emoji']} {lesson['title']}")
+    st.caption("Framework: " + " · ".join(lesson["codes"]))
+
+    run = st.session_state.get(f"{sec}_run")
+    if run and (run["lesson_id"] != lesson["id"] or run["level"] != level):
+        run = None
+        st.session_state[f"{sec}_run"] = None
+    if run is None:
+        _gp_teach(lesson)
+        if st.button("✏️ Start practice", type="primary", use_container_width=True, key=f"{sec}_start_{lesson['id']}"):
+            st.session_state[f"{sec}_run"] = gp_new_run(level, lesson)
+            st.rerun()
+        return
+
+    with st.expander("📘 Remind me of the rules", expanded=False):
+        _gp_teach(lesson)
+    if run["index"] >= len(run["questions"]):
+        _gp_results(sec, level, lesson, lessons, run)
+    else:
+        _gp_question(sec, run)
+
+
+def practice_ui(sec):
+    cfg = PRACTICE_SECTIONS[sec]
+    render_universe_hero(cfg["mode"])
+    levels = cfg["levels"]
+    if not levels:
+        st.error(f"The lessons file is missing. Put {cfg['file']} in the same folder as app.py, then restart the app.")
+        return
+    ensure_grammar_progress_loaded()
+    level = _gp_level_picker(sec, levels)
+    lessons = levels[level]["lessons"]
+    by_id = {l["id"]: l for l in lessons}
+    current = st.session_state.get(f"{sec}_lesson")
+    if current not in by_id:
+        st.session_state[f"{sec}_lesson"], st.session_state[f"{sec}_run"] = None, None
+        _gp_lesson_list(sec, level, lessons)
+        return
+    _gp_lesson_page(sec, level, by_id[current], lessons)
+
+
+def grammar_ui():
+    practice_ui("grammar")
+
+
+def language_ui():
+    practice_ui("language")
+
+
+# ==================================================================
 # TRACKER
 # ==================================================================
 def ensure_progress_loaded():
@@ -4885,6 +5395,10 @@ def main():
         arena_ui()
     elif mode == MODE_VAULT:
         vault_ui()
+    elif mode == MODE_GRAMMAR:
+        grammar_ui()
+    elif mode == MODE_LANGUAGE:
+        language_ui()
     elif mode == MODE_TRACKER:
         tracker_ui()
 
