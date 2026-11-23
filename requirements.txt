@@ -1,6 +1,8 @@
 streamlit>=1.40
+openai>=1.40
 supabase>=2.5
 requests
-pandas
 pillow
+fpdf2
+pandas
 reportlab
