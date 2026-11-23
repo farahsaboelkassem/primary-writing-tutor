@@ -15,12 +15,6 @@ def _get_secret_value(*names: str) -> str:
                 return str(sub[name]).strip()
     raise KeyError(f"Missing secret key. Expected one of: {', '.join(names)}")
 
-
-@st.cache_resource
-def get_supabase_client() -> Client:
-    url = _get_secret_value("SUPABASE_URL", "supabase_url", "url")
-    key = _get_secret_value("SUPABASE_KEY", "supabase_key", "SUPABASE_ANON_KEY", "key")
-    return create_client(url, key)
 TITLE_TIERS = [
     (0, "Novice Scribbler"),
     (100, "Word Explorer"),
