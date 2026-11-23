@@ -263,11 +263,11 @@ def _build_exam_pdf_bytes(
     )
 
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, _safe_pdf_text(exam_title), ln=True)
+    pdf.cell(0, 10, _safe_pdf_text(exam_title), new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 7, _safe_pdf_text(f"Stage: {grade_label}  |  Paper: {paper_choice}"), ln=True)
-    pdf.cell(0, 7, "Name: ___________________________    Date: _______________", ln=True)
+    pdf.cell(0, 7, _safe_pdf_text(f"Stage: {grade_label}  |  Paper: {paper_choice}"), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 7, "Name: ___________________________    Date: _______________", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
     papers = []
@@ -278,60 +278,60 @@ def _build_exam_pdf_bytes(
 
     for section_title in papers:
         pdf.set_font("Helvetica", "B", 13)
-        pdf.cell(0, 9, _safe_pdf_text(section_title), ln=True)
+        pdf.cell(0, 9, _safe_pdf_text(section_title), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(1)
 
         if section_title.startswith("PAPER 1"):
             q_num = 1
             for skill in band_data.get("reading_skills", []):
                 pdf.set_font("Helvetica", "B", 11)
-                pdf.cell(0, 7, _safe_pdf_text(f"{skill['skill_name']} ({skill['skill_id']})"), ln=True)
+                pdf.cell(0, 7, _safe_pdf_text(f"{skill['skill_name']} ({skill['skill_id']})"), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font("Helvetica", "", 10)
                 for pattern in skill.get("question_patterns", []):
-                    pdf.multi_cell(0, 6, _safe_pdf_text(f"Q{q_num}. {pattern}"))
-                    pdf.cell(0, 6, "Answer: ____________________________________________________________________", ln=True)
+                    pdf.multi_cell(0, 6, _safe_pdf_text(f"Q{q_num}. {pattern}"), new_x="LMARGIN", new_y="NEXT")
+                    pdf.cell(0, 6, "Answer: ____________________________________________________________________", new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(2)
                     q_num += 1
 
             for gpv in band_data.get("grammar_punctuation_vocab_skills", []):
                 pdf.set_font("Helvetica", "B", 11)
-                pdf.cell(0, 7, _safe_pdf_text(f"{gpv['skill_name']} ({gpv['skill_id']})"), ln=True)
+                pdf.cell(0, 7, _safe_pdf_text(f"{gpv['skill_name']} ({gpv['skill_id']})"), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font("Helvetica", "", 10)
                 focus_text = ", ".join(gpv.get("focus_areas", []))
-                pdf.multi_cell(0, 6, _safe_pdf_text(f"Q{q_num}. Practise: {focus_text}"))
-                pdf.cell(0, 6, "Answer: ____________________________________________________________________", ln=True)
+                pdf.multi_cell(0, 6, _safe_pdf_text(f"Q{q_num}. Practise: {focus_text}"), new_x="LMARGIN", new_y="NEXT")
+                pdf.cell(0, 6, "Answer: ____________________________________________________________________", new_x="LMARGIN", new_y="NEXT")
                 pdf.ln(2)
                 q_num += 1
 
         else:
             pdf.set_font("Helvetica", "B", 11)
-            pdf.cell(0, 7, _safe_pdf_text("Section A: Extended Reading Questions"), ln=True)
+            pdf.cell(0, 7, _safe_pdf_text("Section A: Extended Reading Questions"), new_x="LMARGIN", new_y="NEXT")
             pdf.ln(1)
             for idx, skill in enumerate(band_data.get("reading_skills", []), start=1):
                 patterns = skill.get("question_patterns", [])
                 prompt_text = patterns[-1] if patterns else skill["skill_name"]
                 pdf.set_font("Helvetica", "B", 10)
-                pdf.multi_cell(0, 6, _safe_pdf_text(f"A{idx} ({skill['skill_name']}): {prompt_text}"))
+                pdf.multi_cell(0, 6, _safe_pdf_text(f"A{idx} ({skill['skill_name']}): {prompt_text}"), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font("Helvetica", "", 10)
                 for _ in range(3):
-                    pdf.cell(0, 6, "____________________________________________________________________________", ln=True)
+                    pdf.cell(0, 6, "____________________________________________________________________________", new_x="LMARGIN", new_y="NEXT")
                 pdf.ln(2)
 
             if include_writing_lines:
                 pdf.ln(2)
                 pdf.set_font("Helvetica", "B", 11)
-                pdf.cell(0, 8, _safe_pdf_text(f"Section B: Writing Task Options (Stage {stage_num})"), ln=True)
+                pdf.cell(0, 8, _safe_pdf_text(f"Section B: Writing Task Options (Stage {stage_num})"), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font("Helvetica", "", 10)
                 for genre in band_data.get("writing_genres", []):
                     genre_name = genre["genre"].replace("_", " ").title()
-                    pdf.multi_cell(0, 6, _safe_pdf_text(f"- {genre_name}: {genre['focus']}"))
+                    pdf.multi_cell(0, 6, _safe_pdf_text(f"- {genre_name}: {genre['focus']}"), new_x="LMARGIN", new_y="NEXT")
                 pdf.ln(3)
                 for _ in range(8):
-                    pdf.cell(0, 7, "____________________________________________________________________________", ln=True)
+                    pdf.cell(0, 7, "____________________________________________________________________________", new_x="LMARGIN", new_y="NEXT")
 
         pdf.ln(4)
 
-    out = pdf.output(dest="S")
+    out = pdf.output()
     if isinstance(out, (bytes, bytearray)):
         return bytes(out)
     return out.encode("latin-1")

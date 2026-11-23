@@ -5,15 +5,28 @@ import streamlit as st
 from supabase import create_client, Client
 
 def _get_secret_value(*names: str) -> str:
-    for name in names:
-        if name in st.secrets:
-            return str(st.secrets[name]).strip()
-    if "supabase" in st.secrets and isinstance(st.secrets["supabase"], dict):
-        sub = st.secrets["supabase"]
+    """Find a secret by any of the given names, at the top level or inside a [supabase] section."""
+    try:
+        secrets = st.secrets
         for name in names:
-            if name in sub:
-                return str(sub[name]).strip()
-    raise KeyError(f"Missing secret key. Expected one of: {', '.join(names)}")
+            if name in secrets:
+                return str(secrets[name]).strip()
+        for section in ("supabase", "SUPABASE", "connections"):
+            if section in secrets:
+                sub = secrets[section]
+                for name in names:
+                    try:
+                        if name in sub:
+                            return str(sub[name]).strip()
+                    except TypeError:
+                        break
+    except Exception:
+        pass
+    raise KeyError(
+        f"Missing secret. Expected one of: {', '.join(names)}. "
+        "Locally, put them in .streamlit/secrets.toml inside the folder you run 'streamlit run' from."
+    )
+
 
 TITLE_TIERS = [
     (0, "Novice Scribbler"),
@@ -34,8 +47,8 @@ BADGE_RULES = [
 
 @st.cache_resource
 def get_supabase_client() -> Client:
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
+    url = _get_secret_value("SUPABASE_URL", "supabase_url", "url")
+    key = _get_secret_value("SUPABASE_KEY", "supabase_key", "SUPABASE_ANON_KEY", "key")
     return create_client(url, key)
 
 
@@ -135,8 +148,9 @@ def sign_in_student(name_or_id: str, pin_code: str) -> tuple[bool, str]:
 
 
 def sign_out_student() -> None:
-    for key in ["student_profile"]:
-        st.session_state.pop(key, None)
+    # Clear everything so the next student on this device starts fresh
+    # (name, XP, badges, word list and history must never carry over).
+    st.session_state.clear()
 
 
 def refresh_student_profile() -> dict | None:
@@ -378,7 +392,10 @@ def render_auth_page() -> None:
             pin_input = st.text_input("Secret PIN (4–8 digits)", type="password", placeholder="••••")
             submitted = st.form_submit_button("Sign In", use_container_width=True)
             if submitted:
-                ok, msg = sign_in_student(name_input, pin_input)
+                try:
+                    ok, msg = sign_in_student(name_input, pin_input)
+                except Exception as exc:
+                    ok, msg = False, f"Could not reach the sign-in service: {type(exc).__name__}: {str(exc).strip(chr(39) + chr(34))[:300]}"
                 if ok:
                     st.success(msg)
                     st.rerun()
@@ -396,7 +413,10 @@ def render_auth_page() -> None:
                 if new_pin != confirm_pin:
                     st.error("Your two PIN entries do not match.")
                 else:
-                    ok, msg = sign_up_student(new_name, new_pin, grade_choice)
+                    try:
+                        ok, msg = sign_up_student(new_name, new_pin, grade_choice)
+                    except Exception as exc:
+                        ok, msg = False, f"Could not reach the sign-in service: {type(exc).__name__}: {str(exc).strip(chr(39) + chr(34))[:300]}"
                     if ok:
                         st.success(msg)
                         st.rerun()

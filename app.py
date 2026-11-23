@@ -60,11 +60,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-st.set_page_config(
-    page_title="...",
-    layout="wide",
-    # ... whatever settings you already have ...
-)  # <-- PASTE AFTER THIS CLOSING PARENTHESIS
 
 from auth_progress import (
     render_auth_page,
@@ -929,7 +924,7 @@ def build_worksheet_html(student_name, age_band, genre, subgenre, title, ws_data
 # ------------------------------------------------------------------
 def init_state():
     defaults = {
-        "student_name": "",
+        "student_name": (st.session_state.get("student_profile") or {}).get("display_name", ""),
         "age_band": AGE_BANDS[0],
         "xp": 0,
         "badges": ["🌱 First Steps"],
@@ -967,6 +962,24 @@ def award_xp(points, badge=None):
         st.session_state["badges"].append("⭐ Rising Author")
     if xp >= 250 and "🏆 Master Storyteller" not in st.session_state["badges"]:
         st.session_state["badges"].append("🏆 Master Storyteller")
+
+
+def safe_log_activity(*args, **kwargs):
+    """Save an activity to the student's account without ever breaking the page."""
+    try:
+        return log_student_activity(*args, **kwargs)
+    except Exception as exc:
+        print(f"[inky] could not save activity: {exc}")
+        return False
+
+
+def safe_save_vocab(*args, **kwargs):
+    """Save a word to the student's private word list without ever breaking the page."""
+    try:
+        return upsert_student_vocabulary(*args, **kwargs)
+    except Exception as exc:
+        print(f"[inky] could not save word: {exc}")
+        return False
 
 
 def level_info(xp):
@@ -1199,6 +1212,10 @@ def la_results(level, lesson, lessons, run):
             done.append(lesson["id"])
             gained = 10 + score * 2
             award_xp(gained, "🎭 Language Legend" if len(done) >= 5 else None)
+            safe_log_activity(
+                "quiz", "Language Arts", str(lesson.get("title") or lesson["id"]),
+                score_or_grade=f"{score}/{total}", genre_or_skill=str(level), xp_earned=gained,
+            )
             run["xp_message"] = f"+{gained} XP for finishing this lesson for the first time!"
 
     ratio = score / max(total, 1)
@@ -1532,11 +1549,11 @@ def _build_exam_pdf_bytes(band_key, band_data, paper_choice, exam_title, include
     )
 
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, _safe_pdf_text(exam_title), ln=True)
+    pdf.cell(0, 10, _safe_pdf_text(exam_title), new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 7, _safe_pdf_text(f"Stage: {stage_label}  |  {paper_choice}"), ln=True)
-    pdf.cell(0, 7, "Name: ___________________________    Date: _______________", ln=True)
+    pdf.cell(0, 7, _safe_pdf_text(f"Stage: {stage_label}  |  {paper_choice}"), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 7, "Name: ___________________________    Date: _______________", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
     papers = []
@@ -1547,59 +1564,59 @@ def _build_exam_pdf_bytes(band_key, band_data, paper_choice, exam_title, include
 
     for section_title in papers:
         pdf.set_font("Helvetica", "B", 13)
-        pdf.cell(0, 9, _safe_pdf_text(section_title), ln=True)
+        pdf.cell(0, 9, _safe_pdf_text(section_title), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(1)
 
         if section_title.startswith("PAPER 1"):
             q_num = 1
             for skill in band_data.get("reading_skills", []):
                 pdf.set_font("Helvetica", "B", 11)
-                pdf.cell(0, 7, _safe_pdf_text(f"{skill['skill_name']} ({skill['skill_id']})"), ln=True)
+                pdf.cell(0, 7, _safe_pdf_text(f"{skill['skill_name']} ({skill['skill_id']})"), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font("Helvetica", "", 10)
                 for pattern in skill.get("question_patterns", []):
-                    pdf.multi_cell(0, 6, _safe_pdf_text(f"Q{q_num}. {pattern}"))
-                    pdf.cell(0, 6, "Answer: ____________________________________________________________________", ln=True)
+                    pdf.multi_cell(0, 6, _safe_pdf_text(f"Q{q_num}. {pattern}"), new_x="LMARGIN", new_y="NEXT")
+                    pdf.cell(0, 6, "Answer: ____________________________________________________________________", new_x="LMARGIN", new_y="NEXT")
                     pdf.ln(2)
                     q_num += 1
 
             for gpv in band_data.get("grammar_punctuation_vocab_skills", []):
                 pdf.set_font("Helvetica", "B", 11)
-                pdf.cell(0, 7, _safe_pdf_text(f"{gpv['skill_name']} ({gpv['skill_id']})"), ln=True)
+                pdf.cell(0, 7, _safe_pdf_text(f"{gpv['skill_name']} ({gpv['skill_id']})"), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font("Helvetica", "", 10)
                 focus_text = ", ".join(gpv.get("focus_areas", []))
-                pdf.multi_cell(0, 6, _safe_pdf_text(f"Q{q_num}. Practise: {focus_text}"))
-                pdf.cell(0, 6, "Answer: ____________________________________________________________________", ln=True)
+                pdf.multi_cell(0, 6, _safe_pdf_text(f"Q{q_num}. Practise: {focus_text}"), new_x="LMARGIN", new_y="NEXT")
+                pdf.cell(0, 6, "Answer: ____________________________________________________________________", new_x="LMARGIN", new_y="NEXT")
                 pdf.ln(2)
                 q_num += 1
         else:
             pdf.set_font("Helvetica", "B", 11)
-            pdf.cell(0, 7, _safe_pdf_text("Section A: Extended Reading Questions"), ln=True)
+            pdf.cell(0, 7, _safe_pdf_text("Section A: Extended Reading Questions"), new_x="LMARGIN", new_y="NEXT")
             pdf.ln(1)
             for idx, skill in enumerate(band_data.get("reading_skills", []), start=1):
                 patterns = skill.get("question_patterns", [])
                 prompt_text = patterns[-1] if patterns else skill["skill_name"]
                 pdf.set_font("Helvetica", "B", 10)
-                pdf.multi_cell(0, 6, _safe_pdf_text(f"A{idx} ({skill['skill_name']}): {prompt_text}"))
+                pdf.multi_cell(0, 6, _safe_pdf_text(f"A{idx} ({skill['skill_name']}): {prompt_text}"), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font("Helvetica", "", 10)
                 for _ in range(3):
-                    pdf.cell(0, 6, "____________________________________________________________________________", ln=True)
+                    pdf.cell(0, 6, "____________________________________________________________________________", new_x="LMARGIN", new_y="NEXT")
                 pdf.ln(2)
 
             if include_writing_lines:
                 pdf.ln(2)
                 pdf.set_font("Helvetica", "B", 11)
-                pdf.cell(0, 8, _safe_pdf_text(f"Section B: Writing Task Options (Stage {stage_num})"), ln=True)
+                pdf.cell(0, 8, _safe_pdf_text(f"Section B: Writing Task Options (Stage {stage_num})"), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font("Helvetica", "", 10)
                 for genre in band_data.get("writing_genres", []):
                     genre_name = genre["genre"].replace("_", " ").title()
-                    pdf.multi_cell(0, 6, _safe_pdf_text(f"- {genre_name}: {genre['focus']}"))
+                    pdf.multi_cell(0, 6, _safe_pdf_text(f"- {genre_name}: {genre['focus']}"), new_x="LMARGIN", new_y="NEXT")
                 pdf.ln(3)
                 for _ in range(8):
-                    pdf.cell(0, 7, "____________________________________________________________________________", ln=True)
+                    pdf.cell(0, 7, "____________________________________________________________________________", new_x="LMARGIN", new_y="NEXT")
 
         pdf.ln(4)
 
-    out = pdf.output(dest="S")
+    out = pdf.output()
     if isinstance(out, (bytes, bytearray)):
         return bytes(out)
     return out.encode("latin-1")
@@ -1758,13 +1775,6 @@ with st.sidebar:
         "".join(f'<span class="badge-chip">{b}</span>' for b in st.session_state["badges"]),
         unsafe_allow_html=True,
     )
-    st.markdown(f"**Student:** {profile['display_name']} ({profile.get('grade_level', '')})")
-    st.markdown(f"**Title:** {profile.get('current_title', 'Novice Scribbler')}")
-    st.markdown(f"**XP:** {profile.get('xp_points', 0)}")
-    if st.button("Sign Out", use_container_width=True):
-        sign_out_student()
-        st.rerun()
-
     st.markdown("---")
     nav = st.radio(
         "Choose Your Adventure",
@@ -1779,7 +1789,9 @@ with st.sidebar:
         ],
     )
 
-st.markdown(universe_css_for(nav), unsafe_allow_html=True)# ------------------------------------------------------------------
+st.markdown(universe_css_for(nav), unsafe_allow_html=True)
+
+# ------------------------------------------------------------------
 # Hero Header
 # ------------------------------------------------------------------
 st.markdown(
@@ -2175,6 +2187,11 @@ elif nav == "🏟️ Marking Arena":
                     if total_score >= 20:
                         badge = "🌟 High Flyer (20+/25)"
                     award_xp(15 + total_score, badge)
+                    safe_log_activity(
+                        "marked_item", "Marking Arena", str(arena_subgenre or rubric_key),
+                        score_or_grade=f"{total_score}/25", genre_or_skill=str(arena_genre),
+                        xp_earned=15 + total_score,
+                    )
                 except Exception as exc:
                     st.error(str(exc))
 
@@ -2334,6 +2351,11 @@ elif nav == "📚 Vocabulary & Language":
                     else:
                         st.error(f"Q{idx + 1}: Answer is **{right_opt}**. {q.get('explanation','')}")
                 award_xp(correct * 8, "📚 Word Wizard" if correct >= 5 else None)
+                safe_log_activity(
+                    "quiz", "Vocabulary Vault", "Vocabulary quiz",
+                    score_or_grade=f"{correct}/{len(questions)}", genre_or_skill="Vocabulary",
+                    xp_earned=correct * 8,
+                )
                 st.info(f"You scored **{correct} / {len(questions)}** (+{correct * 8} XP)!")
 
     with tab_bank:
@@ -2348,6 +2370,7 @@ elif nav == "📚 Vocabulary & Language":
                         0, {"word": new_w.strip(), "meaning": new_m.strip(), "example": new_e.strip()}
                     )
                     sb_save_vocab(st.session_state["student_name"], new_w, new_m, new_e)
+                    safe_save_vocab(new_w.strip(), "Word Bank", new_m.strip(), "Learning")
                     award_xp(5)
                     st.success(f"Added '{new_w}'!")
         for item in st.session_state["local_vocab"]:
@@ -2386,6 +2409,10 @@ elif nav == "✏️ Grammar & Punctuation":
                     if topic_name not in st.session_state["grammar_done"]:
                         st.session_state["grammar_done"].append(topic_name)
                         award_xp(10, "✏️ Grammar Guardian" if len(st.session_state["grammar_done"]) >= 4 else None)
+                        safe_log_activity(
+                            "quiz", "Grammar & Punctuation", str(topic_name),
+                            score_or_grade="Correct", genre_or_skill="Grammar", xp_earned=10,
+                        )
                 else:
                     st.warning(f"Not quite — try again! Hint: {info['why']}")
 
