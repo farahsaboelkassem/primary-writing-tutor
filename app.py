@@ -661,13 +661,37 @@ MAX_TOKENS = {
 # ------------------------------------------------------------------
 def get_secret(name, default=""):
     try:
-        if name in st.secrets:
+        if name in st.secrets and str(st.secrets[name]).strip():
             return str(st.secrets[name]).strip()
     except Exception:
         pass
+
+    if name in ("OPENROUTER_API_KEY", "openrouter_api_key"):
+        try:
+            if "openrouter" in st.secrets:
+                or_sec = st.secrets["openrouter"]
+                for k in ("api_key", "OPENROUTER_API_KEY", "key"):
+                    if k in or_sec and str(or_sec[k]).strip():
+                        return str(or_sec[k]).strip()
+        except Exception:
+            pass
+
+    if name in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_KEY"):
+        try:
+            if "supabase" in st.secrets:
+                sb_sec = st.secrets["supabase"]
+                alias_map = {
+                    "SUPABASE_URL": ("url", "SUPABASE_URL"),
+                    "SUPABASE_ANON_KEY": ("key", "anon_key", "SUPABASE_ANON_KEY", "SUPABASE_KEY"),
+                    "SUPABASE_KEY": ("key", "SUPABASE_KEY", "SUPABASE_ANON_KEY"),
+                }
+                for k in alias_map.get(name, (name,)):
+                    if k in sb_sec and str(sb_sec[k]).strip():
+                        return str(sb_sec[k]).strip()
+        except Exception:
+            pass
+
     return os.environ.get(name, default).strip()
-
-
 # ------------------------------------------------------------------
 # OpenRouter Client & Resilient Fallback Loop
 # ------------------------------------------------------------------
@@ -752,9 +776,8 @@ def call_json(prompt_text, task_key, models=None, temperature=0.55):
 # ------------------------------------------------------------------
 def sb_config():
     url = get_secret("SUPABASE_URL").rstrip("/")
-    key = get_secret("SUPABASE_ANON_KEY")
+    key = get_secret("SUPABASE_ANON_KEY") or get_secret("SUPABASE_KEY")
     return url, key
-
 
 def sb_headers(key, prefer=None):
     headers = {
