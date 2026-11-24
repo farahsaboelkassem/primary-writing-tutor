@@ -50,7 +50,21 @@ from writing_tutor import (
     word_count,
     worksheet_content_prompt,
 )
+def get_openrouter_api_key() -> str:
+    # 1. Check top-level keys first
+    for key_name in ("OPENROUTER_API_KEY", "openrouter_api_key"):
+        if key_name in st.secrets and str(st.secrets[key_name]).strip():
+            return str(st.secrets[key_name]).strip()
 
+    # 2. Check [openrouter] section
+    if "openrouter" in st.secrets:
+        or_section = st.secrets["openrouter"]
+        for key_name in ("api_key", "OPENROUTER_API_KEY", "key"):
+            if key_name in or_section and str(or_section[key_name]).strip():
+                return str(or_section[key_name]).strip()
+
+    # 3. Fallback to environment variable
+    return os.getenv("OPENROUTER_API_KEY", "").strip()
 # ------------------------------------------------------------------
 # Page & Theme
 # ------------------------------------------------------------------
@@ -71,6 +85,20 @@ from auth_progress import (
 )
 
 profile = st.session_state.get("student_profile")
+
+# LOCAL TESTING ONLY: run `DEV_SKIP_LOGIN=1 streamlit run app.py` (Mac/Linux) or
+# `$env:DEV_SKIP_LOGIN=1; streamlit run app.py` (Windows PowerShell) to skip sign-in.
+# It uses an environment variable, so it can never switch on in the deployed app.
+if not profile and os.environ.get("DEV_SKIP_LOGIN") == "1":
+    profile = {
+        "student_id": "dev-test-student",
+        "display_name": "Test Student",
+        "current_title": "Novice Scribbler",
+        "xp_points": 0,
+        "badges": [],
+    }
+    st.session_state["student_profile"] = profile
+
 if not profile:
     render_auth_page()
     st.stop()
@@ -2019,8 +2047,12 @@ elif nav == "🎭 Language Arts":
 elif nav == "🏆 Progress & Badges":
     from auth_progress import get_student_dashboard_data, compute_title, _parse_badges, refresh_student_profile
 
-    profile = refresh_student_profile() or profile
-    data = get_student_dashboard_data(profile["student_id"])
+    try:
+        profile = refresh_student_profile() or profile
+        data = get_student_dashboard_data(profile["student_id"])
+    except Exception:
+        st.warning("Saved progress could not be loaded right now (no database connection).")
+        data = {"activities": [], "marked_history": [], "quizzes": [], "lessons": [], "vocabulary": []}
     xp = int(profile.get("xp_points") or 0)
     title = profile.get("current_title") or compute_title(xp)
     badges = _parse_badges(profile.get("badges"))
