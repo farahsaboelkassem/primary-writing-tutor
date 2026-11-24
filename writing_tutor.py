@@ -361,6 +361,15 @@ NON_FICTION_SUBGENRES = {
 }
 
 FICTION_STYLES = {
+    "Skills": (
+        "Opening Sentences / Hooks (7 Techniques)",
+        "Character Descriptions",
+        "Scene Descriptions",
+        "Writing Dialogue",
+        "Building Suspense & Tension",
+        "Problem & Conflict Starters",
+        "Circular & Reflective Endings",
+    ),
     "Genres": (
         "Adventure",
         "Fantasy",
@@ -371,8 +380,6 @@ FICTION_STYLES = {
         "Science Fiction",
         "Texts with Dilemmas",
     ),
-    "Core Skills": ("Universal Blueprint", "Describing a Setting",
-                    "Describing a Character", "Writing Dialogue"),
 }
 
 SUBGENRE_KEY = {
@@ -398,9 +405,13 @@ SUBGENRE_KEY = {
     "Science Fiction": ("Science Fiction", "Fiction"),
     "Texts with Dilemmas": ("Texts with Dilemmas", "Fiction"),
     "Universal Blueprint": ("Universal Blueprint", "Fiction"),
-    "Describing a Setting": ("Describing a Setting", "Fiction"),
-    "Describing a Character": ("Describing a Character", "Fiction"),
+    "Opening Sentences / Hooks (7 Techniques)": ("Opening Sentences / Hooks (7 Techniques)", "Fiction"),
+    "Character Descriptions": ("Character Descriptions", "Fiction"),
+    "Scene Descriptions": ("Scene Descriptions", "Fiction"),
     "Writing Dialogue": ("Writing Dialogue", "Fiction"),
+    "Building Suspense & Tension": ("Building Suspense & Tension", "Fiction"),
+    "Problem & Conflict Starters": ("Problem & Conflict Starters", "Fiction"),
+    "Circular & Reflective Endings": ("Circular & Reflective Endings", "Fiction"),
 }
 
 BLOCK_SUBSECTIONS = {
@@ -447,7 +458,25 @@ FICTION_GENRES = {
     "Universal Blueprint",
 }
 
-SKILL_FOCUS_GENRES = {"Describing a Setting", "Describing a Character", "Writing Dialogue"}
+SKILL_FOCUS_GENRES = {
+    "Opening Sentences / Hooks (7 Techniques)",
+    "Character Descriptions",
+    "Scene Descriptions",
+    "Writing Dialogue",
+    "Building Suspense & Tension",
+    "Problem & Conflict Starters",
+    "Circular & Reflective Endings",
+}
+
+SEVEN_STORY_OPENERS = (
+    ("1. Dialogue Hook", "Start right in the middle of speech so the reader hears a character immediately."),
+    ("2. Action + Description Hook", "Start with movement or something happening in a vivid place."),
+    ("3. Setting / Atmosphere Description", "Paint the time, weather, and mood of the scene first."),
+    ("4. Sound Effect / Onomatopoeia", "Begin with a sharp noise (Crash! Tick-tock...) that grabs attention."),
+    ("5. Intriguing Question", "Ask a curious question that makes the reader wonder what happened."),
+    ("6. Character / Thought Reveal", "Open inside a character's secret thought, wish, or unusual habit."),
+    ("7. Mystery / Flash-Forward Hint", "Drop a clue about trouble ahead or start at a dramatic moment."),
+)
 
 PERSUASIVE_FEATURES = {
     "lower": (
@@ -625,9 +654,13 @@ SUBGENRE_ICONS = {
     "Science Fiction": "🚀",
     "Texts with Dilemmas": "🔀",
     "Universal Blueprint": "🧩",
-    "Describing a Setting": "🏞️",
-    "Describing a Character": "🧑‍🎤",
+    "Opening Sentences / Hooks (7 Techniques)": "🪝",
+    "Character Descriptions": "🧑‍🎤",
+    "Scene Descriptions": "🏞️",
     "Writing Dialogue": "🗨️",
+    "Building Suspense & Tension": "⚡",
+    "Problem & Conflict Starters": "💥",
+    "Circular & Reflective Endings": "🔄",
 }
 
 BLOCK_ICONS = ("🌱", "🌿", "🌳", "🏆")
@@ -702,9 +735,30 @@ BLOCKS_BY_SUBGENRE = {
                             "Block 4: Falling Action", "Block 5: Resolution"),
     "Universal Blueprint": ("Block 1: Exposition", "Block 2: Rising Action", "Block 3: Climax",
                             "Block 4: Falling Action", "Block 5: Resolution"),
-    "Describing a Setting": ("Block 1: Wide Shot", "Block 2: Zoom In", "Block 3: Mood Reveal"),
-    "Describing a Character": ("Block 1: First Impression", "Block 2: STEAL in Detail", "Block 3: Reveal"),
+    # Independent Fiction Skills
+    "Opening Sentences / Hooks (7 Techniques)": (
+        "Block 1: Core Hooks (Dialogue, Action & Description)",
+        "Block 2: Sensory & Curiosity Hooks (Sound & Question)",
+        "Block 3: Stretch Hooks (Inner Thought & Flash-Forward Clue)",
+    ),
+    "Character Descriptions": ("Block 1: First Impression", "Block 2: STEAL in Detail", "Block 3: Reveal"),
+    "Scene Descriptions": ("Block 1: Wide Shot", "Block 2: Zoom In", "Block 3: Mood Reveal"),
     "Writing Dialogue": ("Block 1: Scene Setting", "Block 2: The Exchange", "Block 3: Aftermath"),
+    "Building Suspense & Tension": (
+        "Block 1: Quiet Clue & Pace Shift",
+        "Block 2: Mounting Tension (4S & Suspense Tricks)",
+        "Block 3: Cliffhanger Peak",
+    ),
+    "Problem & Conflict Starters": (
+        "Block 1: Normal Moment & Conflict Spark",
+        "Block 2: FAT Reaction (Feeling, Action, Talk/Thought)",
+        "Block 3: Complex-Sentence Turning Point",
+    ),
+    "Circular & Reflective Endings": (
+        "Block 1: Echo the Opening Setting",
+        "Block 2: Show Character Change (FAT Reflection)",
+        "Block 3: Final Resonant Line",
+    ),
 }
 
 # ------------------------------------------------------------------
@@ -1807,7 +1861,39 @@ FICTION_BLOCK_CHECKLISTS = {
 }
 
 SKILL_FOCUS_CHECKLISTS = {
-    "Describing a Setting": {
+    "Opening Sentences / Hooks (7 Techniques)": {
+        "lower": {
+            "Block 1: Core Hooks (Dialogue, Action & Description)": (
+                "Write a Dialogue Hook: open with a character speaking inside speech marks.",
+                "Write an Action + Description Hook: show a character moving in a vivid place.",
+                "Write a Setting Description Hook: show WHERE and WHEN using sensory details.",
+            ),
+            "Block 2: Sensory & Curiosity Hooks (Sound & Question)": (
+                "Write a Sound Hook: start with a bold sound word (Crash! Drip... Rustle...).",
+                "Write an Intriguing Question Hook: ask a question that makes the reader curious.",
+            ),
+            "Block 3: Stretch Hooks (Inner Thought & Flash-Forward Clue)": (
+                "Write a Character Thought Hook: share what the character is wondering or feeling.",
+                "Write a Mystery / Hint Hook: drop a clue about what might happen next.",
+            ),
+        },
+        "upper": {
+            "Block 1: Core Hooks (Dialogue, Action & Description)": (
+                "Craft a Dialogue Hook that reveals character voice or tension immediately.",
+                "Craft an Action + Description Hook combining vivid movement with setting detail.",
+                "Craft an Atmosphere Description Hook establishing WHERE, WHEN, and mood.",
+            ),
+            "Block 2: Sensory & Curiosity Hooks (Sound & Question)": (
+                "Craft a Sound Effect Hook using onomatopoeia or auditory imagery to set pace.",
+                "Craft a Rhetorical / Intriguing Question Hook that creates immediate curiosity.",
+            ),
+            "Block 3: Stretch Hooks (Inner Thought & Flash-Forward Clue)": (
+                "Craft an Inner Thought / Monologue Hook revealing a secret motive or dilemma.",
+                "Craft a Flash-Forward / Foreshadowing Hook planting a subtle genre or plot clue.",
+            ),
+        },
+    },
+    "Scene Descriptions": {
         "lower": {
             "Block 1: Wide Shot": ("I described WHERE the place is.",
                                      "I described WHEN (time of day, season).",
@@ -1829,7 +1915,7 @@ SKILL_FOCUS_CHECKLISTS = {
                                        "I revealed how the setting affects characters or reader emotion."),
         },
     },
-    "Describing a Character": {
+    "Character Descriptions": {
         "lower": {
             "Block 1: First Impression": ("I introduced the character.",
                                             "I gave an immediate visual impression.",
@@ -1878,6 +1964,96 @@ SKILL_FOCUS_CHECKLISTS = {
                                         "I wove action or description between dialogue lines."),
             "Block 3: Aftermath": ("I showed the consequences of the conversation.",
                                      "I ended with reflection or a decisive action."),
+        },
+    },
+    "Building Suspense & Tension": {
+        "lower": {
+            "Block 1: Quiet Clue & Pace Shift": (
+                "I started with a calm moment before something unusual happened.",
+                "I used sensory clues (a strange sound, shadow, or sudden silence).",
+            ),
+            "Block 2: Mounting Tension (4S & Suspense Tricks)": (
+                "I used short sentences to speed up the pace.",
+                "I used punctuation for suspense (ellipsis …, dash —, or exclamation !).",
+                "I included part of the 4S (Simile, Sound, Speech, Short sentences).",
+            ),
+            "Block 3: Cliffhanger Peak": (
+                "I showed the character's physical reaction (heart pounding, trembling hands).",
+                "I ended on a gripping cliffhanger or sudden turning point.",
+            ),
+        },
+        "upper": {
+            "Block 1: Quiet Clue & Pace Shift": (
+                "I contrasted calm atmosphere with a subtle warning sign or foreshadowing clue.",
+                "I varied sentence openers and used passive voice or sensory detail to create unease.",
+            ),
+            "Block 2: Mounting Tension (4S & Suspense Tricks)": (
+                "I deployed the 4S structure (Simile, Sound, Speech, Short sentences).",
+                "I combined techniques across Punctuation (—, …), Sentence Structure (one-word sentences, repetition), and Mood Vocabulary.",
+            ),
+            "Block 3: Cliffhanger Peak": (
+                "I used a single-sentence paragraph or sharp contrast for maximum impact.",
+                "I escalated to a decisive turning point or cliffhanger without rushing resolution.",
+            ),
+        },
+    },
+    "Problem & Conflict Starters": {
+        "lower": {
+            "Block 1: Normal Moment & Conflict Spark": (
+                "I chose a clear conflict type (Man vs Man, Nature, Society, Supernatural, Technology, or Self).",
+                "I introduced the problem using an opener like 'Without warning,' or 'Suddenly,'.",
+            ),
+            "Block 2: FAT Reaction (Feeling, Action, Talk/Thought)": (
+                "Feeling: I showed how the character felt inside.",
+                "Action: I showed what the character did with their body.",
+                "Talk/Thought: I included what they said or thought.",
+            ),
+            "Block 3: Complex-Sentence Turning Point": (
+                "I wrote a complex sentence using 'because', 'although', or 'while' to explain the trouble.",
+                "I made the stakes clear so the reader cares what happens next.",
+            ),
+        },
+        "upper": {
+            "Block 1: Normal Moment & Conflict Spark": (
+                "I anchored the scene in a specific conflict type and problem archetype.",
+                "I disrupted the character's normal world with a sharp, concrete inciting incident.",
+            ),
+            "Block 2: FAT Reaction (Feeling, Action, Talk/Thought)": (
+                "I layered Feeling (show-don't-tell emotion), Action (urgent movement), and Talk/Thought (FAT).",
+                "I revealed early character vulnerability or determination under pressure.",
+            ),
+            "Block 3: Complex-Sentence Turning Point": (
+                "I framed the dilemma or complication in a controlled complex sentence (although, while, because).",
+                "I established clear stakes that propel the plot into Rising Action.",
+            ),
+        },
+    },
+    "Circular & Reflective Endings": {
+        "lower": {
+            "Block 1: Echo the Opening Setting": (
+                "I brought the character back to the opening place or image.",
+                "I reused 1–2 describing words from the start, now with a happier or wiser feeling.",
+            ),
+            "Block 2: Show Character Change (FAT Reflection)": (
+                "I showed how the character solved the problem and how they changed.",
+                "I used FAT (Feeling, Action, Thought) to show what they learned.",
+            ),
+            "Block 3: Final Resonant Line": (
+                "I ended with a thoughtful final sentence that leaves a lasting impression.",
+            ),
+        },
+        "upper": {
+            "Block 1: Echo the Opening Setting": (
+                "I deployed the circular ending technique: return to the opening setting or motif.",
+                "I echoed opening adjectives or imagery while transforming their emotional meaning.",
+            ),
+            "Block 2: Show Character Change (FAT Reflection)": (
+                "I demonstrated earned character growth through action and FAT reflection rather than preaching.",
+                "I tied up remaining loose ends or mysteries cleanly.",
+            ),
+            "Block 3: Final Resonant Line": (
+                "I closed with a memorable, resonant final sentence that echoes the theme.",
+            ),
         },
     },
 }
@@ -2047,31 +2223,44 @@ def get_checklist(subgenre, age_key, block_name):
     return BLOCK_CHECKLISTS.get(genre_key, {}).get(age_key, {}).get(block_name, ())
 
 
+def universal_fiction_blueprint_text():
+    """Full Universal Fiction Blueprint kept in AI instructions for WAGOLL and guide generation."""
+    arc = "\n".join(f"- {block}: {FICTION_ARC_INFO.get(block, '')}" for block in FICTION_ARC_BLOCKS)
+    openers = "\n".join(f"- {name}: {detail}" for name, detail in SEVEN_STORY_OPENERS)
+    steal = "\n".join(f"- {code}: {name} — {detail}" for code, (name, detail) in STEAL_ASPECTS.items())
+    conflicts = ", ".join(CONFLICT_TYPES)
+    suspense = "\n".join(
+        f"- {category}: " + "; ".join(f"{name} ({purpose})" for name, purpose in entries)
+        for category, entries in SUSPENSE_LIBRARY.items()
+    )
+    archetypes = "\n".join(
+        f"- {name}: conflict={item['conflict']}; {item['s1']} {item['s2']} {item['s3']}"
+        for name, item in ARCHETYPE_TEMPLATES.items()
+    )
+    return (
+        f"UNIVERSAL FICTION BLUEPRINT (apply to all fiction WAGOLLs and guidance):\n"
+        f"1. 5-BLOCK STORY ARC:\n{arc}\n"
+        f"2. 7 STORY OPENING TECHNIQUES:\n{openers}\n"
+        f"3. STEAL CHARACTERISATION:\n{steal}\n"
+        f"4. CONFLICT TYPES: {conflicts}\n"
+        f"5. SUSPENSE TECHNIQUES (plus 4S: Simile, Sound, Speech, Short sentences):\n{suspense}\n"
+        f"6. PROBLEM ARCHETYPES & FAT (Feeling, Action, Talk/Thought):\n{archetypes}\n"
+        f"7. RESOLUTION & CIRCULAR ENDING: Connect back to the specific problem, show character change, and echo opening imagery with transformed meaning."
+    )
+
+
 def genre_framework_context(subgenre):
     genre_key = canonical_subgenre(subgenre)
-    if genre_key in FICTION_GENRES:
-        arc = "\n".join(f"- {block}: {FICTION_ARC_INFO.get(block, '')}" for block in FICTION_ARC_BLOCKS)
-        steal = "\n".join(f"- {code}: {name} — {detail}" for code, (name, detail) in STEAL_ASPECTS.items())
-        conflicts = ", ".join(CONFLICT_TYPES)
-        suspense = "\n".join(
-            f"- {category}: " + "; ".join(f"{name} ({purpose})" for name, purpose in entries)
-            for category, entries in SUSPENSE_LIBRARY.items()
-        )
-        archetypes = "\n".join(
-            f"- {name}: conflict={item['conflict']}; {item['s1']} {item['s2']} {item['s3']}"
-            for name, item in ARCHETYPE_TEMPLATES.items()
-        )
+    if genre_key in FICTION_GENRES or genre_key in SKILL_FOCUS_GENRES:
+        blueprint = universal_fiction_blueprint_text()
         genre_hints = FICTION_GENRE_HINTS.get(genre_key, ())
         hints_block = ("\nGENRE FOCUS:\n" + "\n".join(f"- {h}" for h in genre_hints)) if genre_hints else ""
-        return (
-            f"FICTION ARC:\n{arc}{hints_block}\nSTEAL CHARACTERISATION:\n{steal}"
-            f"\nCONFLICT TYPES: {conflicts}\nSUSPENSE TECHNIQUES:\n{suspense}"
-            f"\nPROBLEM ARCHETYPES:\n{archetypes}"
+        skill_note = (
+            f"\nSKILL FOCUS ({genre_key}): Apply the Universal Fiction Blueprint standards above while focusing the WAGOLL and checklist strictly on practising '{genre_key}'."
+            if genre_key in SKILL_FOCUS_GENRES
+            else ""
         )
-    if genre_key == "Describing a Character":
-        return "CHARACTERISATION FRAMEWORK (STEAL): " + "; ".join(
-            f"{code}={name}: {detail}" for code, (name, detail) in STEAL_ASPECTS.items()
-        )
+        return f"{blueprint}{hints_block}{skill_note}"
     return ""
 
 
@@ -2139,9 +2328,12 @@ def simplify_genre_tip(text: str) -> str:
 
 
 def get_carousel_cards(subgenre: str, age_band: str) -> list[tuple[str, str]]:
-    """Build bite-sized (title, tip) cards for any Writing Arena genre."""
+    """Build bite-sized (title, tip) cards for any Writing Dojo genre or skill."""
     age_key = age_key_for_band(age_band)
     genre_key = canonical_subgenre(subgenre)
+
+    if genre_key == "Opening Sentences / Hooks (7 Techniques)":
+        return [(name, detail) for name, detail in SEVEN_STORY_OPENERS]
 
     if genre_key in FICTION_GENRES:
         cards: list[tuple[str, str]] = []
@@ -2191,6 +2383,16 @@ def whole_prompt_idea_prompt(genre, subgenre, age_band, user_topic=""):
             if user_topic.strip()
             else "with an engaging, creative, real-world topic suitable for primary students"
         )
+    elif canonical_subgenre(subgenre) in SKILL_FOCUS_GENRES:
+        realism_rule = (
+            f"This is a focused Fiction writing skill drill on '{display_genre}'. "
+            "Create a vivid, imaginative scenario where the student practises this specific skill in short, punchy paragraphs."
+        )
+        topic_clause = (
+            f"based around the student's topic '{user_topic}'"
+            if user_topic.strip()
+            else "with an imaginative, engaging scenario suitable for primary students"
+        )
     else:
         realism_rule = (
             "Keep the prompt aligned with the selected Fiction subgenre while remaining clear and age-appropriate."
@@ -2214,7 +2416,7 @@ Do NOT write a model answer or WAGOLL—write only the assignment prompt and a c
 Return ONLY valid JSON:
 {{
   "topic": "<concise 3-8 word topic title>",
-  "writing_prompt": "<1-2 sentence writing prompt starting with an action verb like 'Write a {display_genre.lower()} about...'>"
+  "writing_prompt": "<1-2 sentence writing prompt starting with an action verb like 'Write...'>"
 }}
 
 {AGE_BAND_GUIDANCE[age_band]}
@@ -2245,9 +2447,9 @@ Apply the exact genre structure, checklist, and features below:
 
 CRITICAL ALIGNMENT & TOKEN RULES:
 1. {token_rule}
-2. Every single phrase in "point_scoring_phrases" and every word in "suggested_vocabulary" MUST directly fit BOTH the genre ({display_genre}) AND the exact purpose of "{section_label}". Never give phrases/words from a different genre or block (for example, do not give story/suspense phrases for a News Report or formal report phrases for a Friendly Letter).
+2. Every single phrase in "point_scoring_phrases" and every word in "suggested_vocabulary" MUST directly fit BOTH the genre/skill ({display_genre}) AND the exact purpose of "{section_label}". Never give phrases/words from a different genre or block (for example, do not give story/suspense phrases for a News Report or formal report phrases for a Friendly Letter).
 3. "prompt": Write a clear, direct writing task for "{section_label}" matching "{writing_prompt}" (do not write a full model answer in "prompt").
-4. "wagoll": Write a concise 2-3 sentence model example ("What A Good One Looks Like") for "{section_label}" on "{title}".
+4. "wagoll": Write a concise 2-3 sentence model example ("What A Good One Looks Like") for "{section_label}" on "{title}" that follows the Universal Fiction Blueprint (when Fiction) and hits the checklist criteria for "{section_label}".
 5. "point_scoring_phrases": Provide STRICTLY 3 or 4 (at most 4, never more than 4) strong sentence starters or genre-appropriate phrases for "{section_label}".
 6. "suggested_vocabulary": Provide STRICTLY 3 or 4 (at most 4, never more than 4) topic- and genre-appropriate vocabulary words for "{section_label}", each with a clear, child-friendly meaning.
 
