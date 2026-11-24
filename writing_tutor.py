@@ -362,7 +362,7 @@ NON_FICTION_SUBGENRES = {
 
 FICTION_STYLES = {
     "Skills": (
-        "Opening Sentences / Hooks (7 Techniques)",
+        "Opening Sentences / Hooks",
         "Character Descriptions",
         "Scene Descriptions",
         "Writing Dialogue",
