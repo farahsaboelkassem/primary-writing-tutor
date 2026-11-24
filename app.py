@@ -1001,6 +1001,7 @@ def init_state():
         "arena_text": "",
         "db_synced_for": "",
         "grammar_done": [],
+        "grammar_lessons_done": [],
         "language_done": [],
     }
     for k, v in defaults.items():
@@ -1125,238 +1126,52 @@ def render_rule_carousel(subgenre: str, age_band: str):
 
 
 # ------------------------------------------------------------------
-# Language Arts (vocabulary and language lessons)
-# The lessons live in language_lessons.py, in the same folder as this file.
+# Lesson sections: Language Arts and Grammar & Punctuation
+# The lessons live in language_lessons.py and grammar_lessons.py (same folder as this file).
+# Both sections share one screen design, which lives in lesson_hub.py.
 # ------------------------------------------------------------------
+from lesson_hub import render_hub
+
 try:
     from language_lessons import LEVELS as LANGUAGE_LEVELS
 except Exception as _la_exc:  # keep the rest of the app working if the file is missing
     LANGUAGE_LEVELS = None
     print(f"[inky] language lessons could not be loaded: {_la_exc}")
 
-
-def la_text(text):
-    """Lesson text as markdown. Keeps **bold** and protects ___ gaps."""
-    return str(text).replace("___", "\\_\\_\\_")
-
-
-def la_safe(text):
-    """Escape markdown so answer options always show as plain text."""
-    return re.sub(r"([\\`*_{}\[\]()#+!|<>~])", r"\\\1", str(text or ""))
-
-
-def la_key(level, lesson_id):
-    return f"{level}::{lesson_id}"
-
-
-def la_new_run(level, lesson):
-    """Fresh practice run: shuffled questions and shuffled answers."""
-    questions = []
-    for q in lesson["questions"]:
-        options = list(q["options"])
-        correct = options[0]  # lessons list the correct answer first
-        random.shuffle(options)
-        questions.append({"kind": q["kind"], "q": q["q"], "options": options, "correct": correct, "why": q["why"]})
-    random.shuffle(questions)
-    return {
-        "id": "%06x" % random.randrange(16 ** 6), "level": level, "lesson_id": lesson["id"],
-        "questions": questions, "index": 0, "score": 0, "checked": False, "choice": None,
-        "answers": [], "saved": False,
-    }
-
-
-def la_level_picker():
-    labels = {key: lvl["label"] for key, lvl in LANGUAGE_LEVELS.items()}
-    stage = st.session_state.get("age_band", "")
-    if st.session_state.get("la_age_band") != stage:  # start on the student's own level
-        st.session_state["la_age_band"] = stage
-        st.session_state["la_level"] = "lower" if str(stage).lower().startswith("lower") else "upper"
-    st.session_state.setdefault("la_level", "upper")
-    return st.radio("Choose your level", list(labels), format_func=lambda k: labels[k], horizontal=True, key="la_level")
-
-
-def la_teach(lesson):
-    st.markdown(f"**{la_text(lesson['intro'])}**")
-    for rule in lesson["rules"]:
-        with st.container(border=True):
-            st.markdown(f"**{la_text(rule['title'])}**")
-            st.markdown(la_text(rule["text"]))
-            for example in rule.get("examples", []):
-                st.markdown(f"- *{la_text(example)}*")
-    if lesson.get("tip"):
-        st.info(f"💡 {lesson['tip']}")
-
-
-def la_lesson_list(level, lessons):
-    best = st.session_state.setdefault("la_best", {})
-    practised = sum(1 for l in lessons if best.get(la_key(level, l["id"]), {}).get("tries"))
-    st.progress(practised / len(lessons), text=f"{practised} of {len(lessons)} lessons practised")
-    cols = st.columns(2)
-    for i, lesson in enumerate(lessons):
-        with cols[i % 2]:
-            with st.container(border=True):
-                st.markdown(f"### {lesson['emoji']} {lesson['title']}")
-                st.caption(lesson["blurb"])
-                p = best.get(la_key(level, lesson["id"]))
-                if p and p.get("tries"):
-                    medal = " 🏅" if p["best"] >= p["total"] else ""
-                    st.markdown(f"⭐ Best score: **{p['best']} / {p['total']}**{medal}")
-                else:
-                    st.caption("Not started yet")
-                st.caption("Framework: " + " · ".join(lesson["codes"]))
-                if st.button("Open lesson", key=f"la_open_{lesson['id']}", use_container_width=True, type="primary"):
-                    st.session_state["la_lesson"], st.session_state["la_run"] = lesson["id"], None
-                    st.rerun()
-
-
-def la_question(run):
-    questions, idx = run["questions"], run["index"]
-    q = questions[idx]
-    st.progress(idx / len(questions), text=f"Question {idx + 1} of {len(questions)}")
-    st.caption("🔍 Spot it" if q["kind"] == "spot" else "✍️ Use it")
-    st.markdown(f"#### {la_text(q['q'])}")
-
-    if not run["checked"]:
-        choice = st.radio("Choose your answer", q["options"], index=None,
-                          key=f"la_choice_{run['id']}_{idx}", label_visibility="collapsed")
-        if st.button("Check answer", type="primary", use_container_width=True, key=f"la_check_{run['id']}_{idx}"):
-            if choice is None:
-                st.warning("Choose an answer first.")
-                return
-            correct = choice == q["correct"]
-            run["answers"].append({"q": q["q"], "chosen": choice, "correct_text": q["correct"], "correct": correct, "why": q["why"]})
-            if correct:
-                run["score"] += 1
-            run["checked"], run["choice"] = True, choice
-            st.rerun()
-        return
-
-    for opt in q["options"]:
-        if opt == q["correct"]:
-            st.markdown(f"✅ **{la_safe(opt)}**")
-        elif opt == run["choice"]:
-            st.markdown(f"❌ {la_safe(opt)}")
-        else:
-            st.markdown(f"◻️ {la_safe(opt)}")
-    if run["choice"] == q["correct"]:
-        st.success(f"🎉 Correct! {q['why']}")
-    else:
-        st.error(f"Not quite. {q['why']}")
-    last = idx + 1 >= len(questions)
-    if st.button("See my results" if last else "Next question →", type="primary", use_container_width=True,
-                 key=f"la_next_{run['id']}_{idx}"):
-        run["index"] += 1
-        run["checked"], run["choice"] = False, None
-        st.rerun()
-
-
-def la_results(level, lesson, lessons, run):
-    score, total = run["score"], len(run["questions"])
-    if not run["saved"]:
-        run["saved"] = True
-        best = st.session_state.setdefault("la_best", {})
-        cur = best.get(la_key(level, lesson["id"]))
-        if cur is None:
-            best[la_key(level, lesson["id"])] = {"best": score, "total": total, "tries": 1}
-        else:
-            cur["tries"] += 1
-            if score / max(total, 1) > cur["best"] / max(cur["total"], 1):
-                cur["best"], cur["total"] = score, total
-        done = st.session_state["language_done"]
-        if lesson["id"] not in done:  # XP only the first time through each lesson
-            done.append(lesson["id"])
-            gained = 10 + score * 2
-            award_xp(gained, "🎭 Language Legend" if len(done) >= 5 else None)
-            safe_log_activity(
-                "quiz", "Language Arts", str(lesson.get("title") or lesson["id"]),
-                score_or_grade=f"{score}/{total}", genre_or_skill=str(level), xp_earned=gained,
-            )
-            run["xp_message"] = f"+{gained} XP for finishing this lesson for the first time!"
-
-    ratio = score / max(total, 1)
-    st.progress(1.0, text="Practice complete")
-    if ratio >= 0.85:
-        st.success(f"🏅 Brilliant! You scored {score} out of {total}.")
-        if not run.get("celebrated"):
-            run["celebrated"] = True
-            st.balloons()
-    elif ratio >= 0.6:
-        st.success(f"👏 Well done! You scored {score} out of {total}.")
-    else:
-        st.info(f"💪 You scored {score} out of {total}. Read the rules again, then try once more.")
-    if run.get("xp_message"):
-        st.caption(run["xp_message"])
-
-    wrong = [a for a in run["answers"] if not a["correct"]]
-    if wrong:
-        st.subheader("Let’s look at these again")
-        for a in wrong:
-            with st.container(border=True):
-                st.markdown(f"**{la_text(a['q'])}**")
-                st.markdown(f"❌ Your answer: {la_safe(a['chosen'])}")
-                st.markdown(f"✅ Correct answer: **{la_safe(a['correct_text'])}**")
-                st.caption(a["why"])
-    else:
-        st.markdown("Every answer was right. Try another lesson to keep the stars coming!")
-
-    ids = [l["id"] for l in lessons]
-    nxt = ids[ids.index(lesson["id"]) + 1] if lesson["id"] in ids and ids.index(lesson["id"]) + 1 < len(ids) else None
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        if st.button("🔁 Try again", use_container_width=True, key=f"la_again_{run['id']}"):
-            st.session_state["la_run"] = la_new_run(level, lesson)
-            st.rerun()
-    with c2:
-        if st.button("📚 All lessons", use_container_width=True, key=f"la_all_{run['id']}"):
-            st.session_state["la_lesson"], st.session_state["la_run"] = None, None
-            st.rerun()
-    with c3:
-        if nxt and st.button("➡️ Next lesson", use_container_width=True, key=f"la_nextlesson_{run['id']}"):
-            st.session_state["la_lesson"], st.session_state["la_run"] = nxt, None
-            st.rerun()
-
-
-def la_lesson_page(level, lesson, lessons):
-    if st.button("← All lessons", key="la_back"):
-        st.session_state["la_lesson"], st.session_state["la_run"] = None, None
-        st.rerun()
-    st.markdown(f"## {lesson['emoji']} {lesson['title']}")
-    st.caption("Framework: " + " · ".join(lesson["codes"]))
-
-    run = st.session_state.get("la_run")
-    if run and (run["lesson_id"] != lesson["id"] or run["level"] != level):
-        run = None
-        st.session_state["la_run"] = None
-    if run is None:
-        la_teach(lesson)
-        if st.button("✏️ Start practice", type="primary", use_container_width=True, key=f"la_start_{lesson['id']}"):
-            st.session_state["la_run"] = la_new_run(level, lesson)
-            st.rerun()
-        return
-
-    with st.expander("📘 Remind me of the rules", expanded=False):
-        la_teach(lesson)
-    if run["index"] >= len(run["questions"]):
-        la_results(level, lesson, lessons, run)
-    else:
-        la_question(run)
+try:
+    from grammar_lessons import LEVELS as GRAMMAR_LEVELS
+except Exception as _gr_exc:
+    GRAMMAR_LEVELS = None
+    print(f"[inky] grammar lessons could not be loaded: {_gr_exc}")
 
 
 def render_language_arts():
-    if not LANGUAGE_LEVELS:
-        st.error("The language lessons file is missing. Put language_lessons.py in the same folder as app.py, then restart the app.")
-        return
-    level = la_level_picker()
-    lessons = LANGUAGE_LEVELS[level]["lessons"]
-    by_id = {l["id"]: l for l in lessons}
-    current = st.session_state.get("la_lesson")
-    if current not in by_id:
-        st.session_state["la_lesson"], st.session_state["la_run"] = None, None
-        la_lesson_list(level, lessons)
-        return
-    la_lesson_page(level, by_id[current], lessons)
+    render_hub({
+        "prefix": "la",
+        "levels": LANGUAGE_LEVELS,
+        "done_key": "language_done",
+        "section": "Language Arts",
+        "badge": ("🎭 Language Legend", 5),
+        "award_xp": award_xp,
+        "log": safe_log_activity,
+        "stage": lambda: st.session_state.get("age_band", ""),
+        "missing": "The language lessons file is missing. Put language_lessons.py in the same folder as app.py, then restart the app.",
+    })
 
 
+def render_grammar():
+    render_hub({
+        "prefix": "gr",
+        "levels": GRAMMAR_LEVELS,
+        "done_key": "grammar_lessons_done",
+        "section": "Grammar & Punctuation",
+        "badge": ("✏️ Grammar Guardian", 8),
+        "award_xp": award_xp,
+        "log": safe_log_activity,
+        "stage": lambda: st.session_state.get("age_band", ""),
+        "back_label": "📚 Back to topic",
+        "missing": "The grammar lessons file is missing. Put grammar_lessons.py in the same folder as app.py, then restart the app.",
+    })
 # ------------------------------------------------------------------
 # App Init & Sidebar
 # ------------------------------------------------------------------
@@ -2028,33 +1843,9 @@ elif nav == "📚 Vocabulary & Language":
 # ==================================================================
 elif nav == "✏️ Grammar & Punctuation":
     render_inky_bubble(
-        "Master the rules that make your writing shine! Read each quick rule and try the mini-check."
+        "Pick your level, choose a topic, then learn the rules and practise to earn XP!"
     )
-
-    for topic_name, info in GRAMMAR_TOPICS.items():
-        with st.expander(f"✏️ {topic_name}", expanded=(topic_name == "Capital Letters & Full Stops")):
-            st.markdown(f"**Rule:** {info['rule']}")
-            st.markdown(f"**Example:** *{info['example']}*")
-            st.markdown(f"**Quick Check:** {info['question']}")
-            picked = st.radio(
-                f"Options for {topic_name}",
-                info["options"],
-                key=f"gram_{topic_name}",
-                label_visibility="collapsed",
-            )
-            if st.button("Check Answer", key=f"chk_{topic_name}"):
-                if info["options"].index(picked) == info["answer"]:
-                    st.success(f"Spot on! {info['why']}")
-                    if topic_name not in st.session_state["grammar_done"]:
-                        st.session_state["grammar_done"].append(topic_name)
-                        award_xp(10, "✏️ Grammar Guardian" if len(st.session_state["grammar_done"]) >= 4 else None)
-                        safe_log_activity(
-                            "quiz", "Grammar & Punctuation", str(topic_name),
-                            score_or_grade="Correct", genre_or_skill="Grammar", xp_earned=10,
-                        )
-                else:
-                    st.warning(f"Not quite — try again! Hint: {info['why']}")
-
+    render_grammar()
 # ==================================================================
 # VIEW: LANGUAGE ARTS
 # ==================================================================
