@@ -38,10 +38,12 @@ from writing_tutor import (
     SUBGENRE_KEY,
     apply_word_count_rules,
     block_ai_guide_prompt,
+    block_extra_help_prompt,
     block_feedback_prompt,
     canonical_subgenre,
     get_blocks,
     get_carousel_cards,
+    get_step_blueprint_and_wagoll,
     piece_marking_prompt,
     quiz_prompt,
     toolkit_prompt,
@@ -1379,7 +1381,7 @@ if nav == "🥋 The Writing Dojo":
     with main_right:
         render_rule_carousel(subgenre, age_band)
 
-    with main_left:
+with main_left:
         st.markdown("### 🧱 Build Your Piece Step by Step")
         draft_parts = []
         for i, step in enumerate(grouped_steps):
@@ -1391,14 +1393,28 @@ if nav == "🥋 The Writing Dojo":
             text_key = f"draft_{step_slug}"
             fb_key = f"fb_{step_slug}"
 
+            blueprint_explanation, builtin_wagoll = get_step_blueprint_and_wagoll(
+                subgenre, step_label, age_band
+            )
+
             with st.container():
                 st.markdown(f'<div class="step-pill">Part {i + 1} • {step_label}</div>', unsafe_allow_html=True)
 
-                if st.button(f"✨ Guide for {step_label}", key=f"btn_guide_{step_slug}"):
-                    with st.spinner(f"Building prompt, WAGOLL, phrases & vocabulary for {step_label}..."):
+                # 1. Built-in concise Blueprint Schema explanation + leading question (0 AI tokens)
+                st.markdown(f"🧭 **Blueprint:** {blueprint_explanation}")
+
+                # 2. Built-in WAGOLL example matched to grade level (0 AI tokens)
+                st.markdown(
+                    f'<div class="wagoll-box"><b>🌟 Example WAGOLL ({age_band.split("(")[0].strip()}):</b><br>{builtin_wagoll}</div>',
+                    unsafe_allow_html=True,
+                )
+
+                # 3. Extra Help button -> AI-generated vocabulary & key phrases + save to Word Bank
+                if st.button(f"✨ Extra Help: Vocabulary & Key Phrases", key=f"btn_guide_{step_slug}"):
+                    with st.spinner(f"Finding {age_band} vocabulary & key phrases for {step_label}..."):
                         try:
                             guide_data = call_json(
-                                block_ai_guide_prompt(
+                                block_extra_help_prompt(
                                     age_band,
                                     genre,
                                     subgenre,
@@ -1417,32 +1433,40 @@ if nav == "🥋 The Writing Dojo":
 
                 guide = st.session_state.get(guide_key)
                 if guide:
-                    st.markdown(f"**🎯 Section Prompt:** {guide.get('prompt', '')}")
-                    st.markdown(
-                        f'<div class="wagoll-box"><b>🌟 WAGOLL (What A Good One Looks Like):</b><br>{guide.get("wagoll", "")}</div>',
-                        unsafe_allow_html=True,
-                    )
                     phrases = guide.get("point_scoring_phrases", [])[:4]
                     if phrases:
-                        st.markdown(
-                            "**✨ Point-Scoring Phrases:** "
-                            + " &nbsp;•&nbsp; ".join(f"`{p}`" for p in phrases)
-                        )
+                        st.markdown("**✨ Point-Scoring Key Phrases:**")
+                        for p_idx, p_txt in enumerate(phrases):
+                            pc1, pc2 = st.columns([4, 1])
+                            pc1.markdown(f"- `{p_txt}`")
+                            if p_txt and pc2.button("+ Bank", key=f"save_p_{step_slug}_{p_idx}"):
+                                phrase_meaning = f"Key phrase for {clean_subgenre} ({step_label})"
+                                st.session_state["local_vocab"].append({
+                                    "word": p_txt,
+                                    "meaning": phrase_meaning,
+                                    "example": f"Used in {title}",
+                                })
+                                sb_save_vocab(st.session_state["student_name"], p_txt, phrase_meaning, f"Used in {title}")
+                                safe_save_vocab(p_txt, clean_subgenre, phrase_meaning, "Learning")
+                                award_xp(5)
+                                st.toast(f"Saved key phrase to your Vocabulary Bank!")
+
                     vocab_list = guide.get("suggested_vocabulary", [])[:4]
                     if vocab_list:
                         st.markdown("**💎 Suggested Vocabulary:**")
-                        for v_item in vocab_list:
+                        for v_idx, v_item in enumerate(vocab_list):
                             w_txt = v_item.get("word", "")
                             m_txt = v_item.get("meaning", "")
                             vc1, vc2 = st.columns([4, 1])
                             vc1.markdown(f"- **{w_txt}** — {m_txt}")
-                            if w_txt and vc2.button("+ Bank", key=f"save_v_{step_slug}_{w_txt}"):
+                            if w_txt and vc2.button("+ Bank", key=f"save_v_{step_slug}_{v_idx}_{w_txt}"):
                                 st.session_state["local_vocab"].append({
                                     "word": w_txt,
                                     "meaning": m_txt,
                                     "example": f"Used in {title}",
                                 })
                                 sb_save_vocab(st.session_state["student_name"], w_txt, m_txt, f"Used in {title}")
+                                safe_save_vocab(w_txt, clean_subgenre, m_txt, "Learning")
                                 award_xp(5)
                                 st.toast(f"Saved '{w_txt}' to your Word Bank!")
 
@@ -1458,6 +1482,7 @@ if nav == "🥋 The Writing Dojo":
                 )
                 draft_parts.append((step_label, part_text))
 
+                # 4. Block-by-block AI check (unchanged, grade-band matched)
                 if st.button(f"🦉 Check {step_label}", key=f"btn_fb_{step_slug}"):
                     if word_count(part_text) < 4:
                         st.warning("Write at least one sentence first so Inky can help!")

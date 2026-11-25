@@ -2469,7 +2469,406 @@ Return ONLY valid JSON in this exact shape:
 {SAFETY_RULES}
 """.strip()
 
+BLUEPRINT_SCHEMAS_AND_WAGOLL = {
+    # --- FICTION: 5-BLOCK STORY ARC ---
+    "Block 1: Exposition": {
+        "blueprint": "Use **D.A.D.** (**D**ialogue to open strong, a powerful **A**ction verb, and sensory **D**escription of the setting) to introduce your character and world.",
+        "question": "Where is your character right now, what are they doing, and what sounds or sights surround them?",
+        "lower": '“Stay close to the lantern!” whispered Maya, gripping the rusty gate as cold mist curled around her boots.',
+        "upper": '“If the tide turns before midnight, we will never reach the lighthouse,” muttered Maya, squinting through the salt-heavy gale as waves hammered the jagged rocks below.',
+    },
+    "Block 2: Rising Action": {
+        "blueprint": "Follow **C.O.P.** (**C**lue or twist, **O**bstacle in the way, and **P**roblem escalating) to raise the stakes for your hero.",
+        "question": "What unexpected problem blocks your character's path, and how do they react?",
+        "lower": "Suddenly, the wooden bridge creaked and snapped beneath their feet. Maya grabbed a hanging vine just in time, her heart thumping like a drum.",
+        "upper": "No sooner had they crossed the courtyard than the iron portcullis slammed shut, trapping them inside as heavy footsteps echoed down the stone corridor.",
+    },
+    "Block 3: Climax": {
+        "blueprint": "Build the peak with **F.A.T.** (**F**eeling inside, bold **A**ction, and urgent **T**alk or thought) at the moment of greatest danger.",
+        "question": "What brave decision or bold move must your character make right now to face the danger?",
+        "lower": "Trembling with fear, Leo leaped across the gap and jammed the golden key into the lock just as the shadow lunged forward.",
+        "upper": "With every muscle burning and seconds to spare, Leo hurled himself toward the control lever, wrenching it downward as sparks showered across the chamber.",
+    },
+    "Block 4: Falling Action": {
+        "blueprint": "Show the aftermath using **R.E.A.C.T.** (**R**elief or calm, **E**ffect of the choice, and **A**ftermath **C**hange in the **T**ension).",
+        "question": "How does the danger fade, and what immediate change do the characters notice?",
+        "lower": "The rumbling stopped at last, and sunlight poured through the cracked ceiling onto the dusty floor.",
+        "upper": "As the deafening roar subsided into silence, the heavy doors swung open, revealing the quiet harbour bathed in pale morning light.",
+    },
+    "Block 5: Resolution": {
+        "blueprint": "Close with **L.E.A.R.N.** (**L**esson gained, **E**motional shift, and a **N**ew normal) so your ending feels complete.",
+        "question": "How has your character changed by the end, and what final thought stays with the reader?",
+        "lower": "Walking home side by side, Maya smiled because she knew being brave meant helping a friend even when you feel scared.",
+        "upper": "Looking back at the distant island, Maya realised true courage was never the absence of fear, but the choice to keep going despite it.",
+    },
 
+    # --- FICTION: INDEPENDENT SKILLS ---
+    "Block 1: Core Hooks (Dialogue, Action & Description)": {
+        "blueprint": "Craft your opening using **D.A.D.** (**D**ialogue first, powerful **A**ction verb, and vivid **D**escription of the scene).",
+        "question": "What dramatic line of speech, sudden movement, and sensory detail will pull your reader straight into the scene?",
+        "lower": '“Don’t open that box!” shouted Sam, diving across the attic floor as dust danced in the single beam of sunlight.',
+        "upper": '“Whatever you do, do not look down,” warned Elena, tightening her grip on the frayed rope bridge swaying high above the emerald canyon.',
+    },
+    "Block 2: Sensory & Curiosity Hooks (Sound & Question)": {
+        "blueprint": "Hook curiosity with **S.Q.** (**S**ound effect / onomatopoeia followed by an intriguing **Q**uestion).",
+        "question": "What sharp sound breaks the silence, and what mystery question will make the reader desperate to know more?",
+        "lower": "CRACK! A branch snapped behind the shed—who could possibly be creeping through the garden at midnight?",
+        "upper": "TICK-TOCK. The brass pocket watch chimed thirteen times—how could a clock broken for fifty years suddenly spring back to life?",
+    },
+    "Block 3: Stretch Hooks (Inner Thought & Flash-Forward Clue)": {
+        "blueprint": "Stretch tension with **T.C.** (a secret inner **T**hought paired with a **C**lue about trouble ahead).",
+        "question": "What secret worry is running through your character's mind, and what early clue hints at danger?",
+        "lower": "Tariq wished he had stayed home today, especially when he noticed the muddy footprints leading straight to his locker.",
+        "upper": "Amira tried to convince herself the map was just a harmless prank, yet the freshly broken wax seal proved someone else had found it first.",
+    },
+    "Block 1: First Impression": {
+        "blueprint": "Introduce your character with **F.A.C.E.** (**F**eature that stands out, **A**ge or build, **C**lothing detail, and **E**xpression).",
+        "question": "What is the very first thing someone notices when your character walks into the room?",
+        "lower": "Captain Barnaby was a tall man with a crooked pirate hat, a bushy grey beard, and a twinkle in his bright blue eyes.",
+        "upper": "Stooped beneath a tattered woollen cloak, Professor Vance peered over half-moon spectacles with sharp, inquisitive eyes that missed nothing.",
+    },
+    "Block 2: STEAL in Detail": {
+        "blueprint": "Bring personality alive with **S.T.E.A.L.** (**S**peech, **T**houghts, **E**ffect on others, **A**ctions, and **L**ooks).",
+        "question": "How do your character's words, habits, and actions show their personality without simply telling the reader?",
+        "lower": '“Let’s share my lunch!” beamed Hana, always quick to pat a sad friend on the shoulder and make everyone laugh.',
+        "upper": '“Precision saves lives,” murmured Dr. Lin, neatly aligning her instruments while younger trainees watched in admiring silence.',
+    },
+    "Block 3: Reveal": {
+        "blueprint": "Finish with **H.I.D.E.** (a **H**idden motive, **I**nner secret, or **D**eep **E**motion revealed at the end).",
+        "question": "What hidden secret, dream, or true feeling is revealed about your character in the final lines?",
+        "lower": "Though he boasted about being fearless, Omar secretly kept a tiny night-light glowing beside his bed.",
+        "upper": "Behind her confident smile, Clara clutched the crumpled acceptance letter, terrified of leaving the only home she had ever known.",
+    },
+    "Block 1: Wide Shot": {
+        "blueprint": "Paint the big picture using **W.T.W.** (**W**here the place is, **T**ime of day, and **W**eather or sky).",
+        "question": "If a camera filmed this place from high above, what time of day, weather, and landscape would we see?",
+        "lower": "At sunrise, golden light spread across the quiet valley while soft white clouds floated above the green hills.",
+        "upper": "As dusk settled over the abandoned harbour, bruised purple clouds gathered above the glassy, ink-dark water.",
+    },
+    "Block 2: Zoom In": {
+        "blueprint": "Focus close using **S.S.S.** (**S**ights, **S**ounds, and **S**mells/textures up close).",
+        "question": "Which three tiny details can the character see, hear, or smell right beside them?",
+        "lower": "Crunchy autumn leaves crackled underfoot, smelling of damp earth and sweet roasted chestnuts.",
+        "upper": "Ivy strangled the rusted iron railings, while the sharp tang of sea salt mingled with the rhythmic creak of distant buoys.",
+    },
+    "Block 3: Mood Reveal": {
+        "blueprint": "Set the atmosphere with **M.O.O.D.** (**M**etaphor or simile, **O**bject detail, and **O**verall **D**ominant feeling).",
+        "question": "What comparison (simile/metaphor) best captures the atmosphere of this place?",
+        "lower": "The empty playground stood as silent as a sleeping giant, waiting for the morning bell.",
+        "upper": "Shadows stretched across the library floor like bony fingers, wrapping the silent room in an eerie chill.",
+    },
+    "Block 1: Scene Setting": {
+        "blueprint": "Ground the conversation with **W.W.A.** (**W**ho is speaking, **W**here they stand, and what **A**ction they are doing).",
+        "question": "Who is about to speak, and what small physical action are they doing before the first word?",
+        "lower": "Standing beside the science table, Noah adjusted his goggles and stared at the bubbling green mixture.",
+        "upper": "Leaning against the rain-streaked window, Zayd folded the telegram carefully before turning to face his sister.",
+    },
+    "Block 2: The Exchange": {
+        "blueprint": "Write realistic speech using **S.A.P.** (**S**peech marks on a new line per speaker, expressive **A**ction beats, and **P**unctuation inside speech marks).",
+        "question": "What do the characters say back and forth, and how do their voices and actions show their feelings?",
+        "lower": '“Are you sure this map is right?” asked Mia, frowning.\n“Positive!” replied Jack, pointing a muddy finger at the red cross.',
+        "upper": '“You promised we would tell the headteacher,” insisted Tariq, stepping forward.\n“And we will,” answered Sara quietly, “the moment we have proof.”',
+    },
+    "Block 3: Aftermath": {
+        "blueprint": "Wrap the dialogue with **P.A.C.E.** (**P**ause or silence, character **A**ction, and **C**hange in **E**motion).",
+        "question": "What happens right after the last line is spoken to move the story forward?",
+        "lower": "Neither of them spoke another word as they grabbed their backpacks and hurried toward the door.",
+        "upper": "A heavy silence lingered between them before Tariq nodded once and pocketed the key.",
+    },
+    "Block 1: Quiet Clue & Pace Shift": {
+        "blueprint": "Start uneasy with **C.P.S.** (a small **C**lue something is wrong, a **P**ace shift, and **S**ensory stillness).",
+        "question": "What tiny detail feels out of place before the danger begins?",
+        "lower": "The hallway was completely silent, except for the front door swinging gently open in the breeze.",
+        "upper": "Every clock in the downstairs corridor had stopped at 11:58, and the usual hum of the city outside had vanished.",
+    },
+    "Block 2: Mounting Tension (4S & Suspense Tricks)": {
+        "blueprint": "Build fear using **4S** (**S**hort sentences, **S**hadows/sounds, **S**lowed time, and **S**hake/heartbeat reactions).",
+        "question": "How can short sentences and mysterious sounds make your character's heart race?",
+        "lower": "Footsteps creaked on the stairs. Closer. Closer. Sara held her breath and pressed her back against the wardrobe.",
+        "upper": "A floorboard groaned. Shadows lengthened across the landing. With pulse hammering in her ears, Sara edged toward the stairwell, straining to hear.",
+    },
+    "Block 3: Cliffhanger Peak": {
+        "blueprint": "End on a spike using **S.H.O.C.K.** (**S**udden reveal, **H**alt at the peak, and **O**pen **C**liffhanger **K**icker).",
+        "question": "What shocking sight or sound appears at the exact second the scene cuts off?",
+        "lower": "The door handle slowly turned—and standing in the doorway was a pair of glowing yellow eyes!",
+        "upper": "Just as her fingers brushed the light switch, a gloved hand clamped over the torch beam and plunged the room into darkness.",
+    },
+    "Block 1: Normal Moment & Conflict Spark": {
+        "blueprint": "Launch the problem with **N.S.** (a peaceful **N**ormal moment interrupted by a sudden **S**park of trouble).",
+        "question": "What ordinary activity was your character enjoying right before trouble struck?",
+        "lower": "Lina was happily decorating her birthday cake when the kitchen lights flickered and went out completely.",
+        "upper": "Minutes before the robotics final was due to begin, Daniyal opened his carry-case only to discover the main circuit board was missing.",
+    },
+    "Block 2: FAT Reaction (Feeling, Action, Talk/Thought)": {
+        "blueprint": "Show immediate reaction with **F.A.T.** (**F**eeling inside, quick **A**ction, and **T**alk or thought).",
+        "question": "How does your character feel, act, and speak in the first three seconds after the problem happens?",
+        "lower": '“Oh no!” gasped Lina, her stomach sinking as she searched the dark counter for a flashlight.',
+        "upper": 'Panic surged in Daniyal’s chest as he frantically emptied his bag onto the table. “Someone must have swapped cases!” he whispered.',
+    },
+    "Block 3: Complex-Sentence Turning Point": {
+        "blueprint": "Shift into action using **D.E.C.I.D.E.** (a complex sentence with *although/because/while* showing a bold **D**ecision).",
+        "question": "What tough choice does your character make despite the problem?",
+        "lower": "Although the kitchen was pitch-black, Lina grabbed a bowl and decided to finish mixing the icing by moonlight.",
+        "upper": "Although only ten minutes remained on the clock, Daniyal reached for his spare wire kit and began rebuilding the circuit from memory.",
+    },
+    "Block 1: Echo the Opening Setting": {
+        "blueprint": "Mirror the start with **E.C.H.O.** (**E**cho an object, **C**olour, or **H**abit from your **O**pening scene).",
+        "question": "Which detail from the very beginning of your story reappears now in a fresh way?",
+        "lower": "Once again, the rusty garden gate creaked in the breeze, only now the morning sun shone brightly over the flowers.",
+        "upper": "The brass lantern still swung beside the harbour wall, yet its warm amber glow now guided the boat safely home.",
+    },
+    "Block 2: Show Character Change (FAT Reflection)": {
+        "blueprint": "Prove growth with **F.A.T.** (**F**eeling now vs. before, confident **A**ction, and reflective **T**hought).",
+        "question": "How do your character's feelings and actions show they have grown braver or wiser?",
+        "lower": "Instead of hiding behind his sister, Omar stepped forward proudly and handed the lost puppy back to its owner.",
+        "upper": "No longer hesitating at the edge of the stage, Amira lifted her violin with steady hands and smiled at the audience.",
+    },
+    "Block 3: Final Resonant Line": {
+        "blueprint": "Leave an imprint with **L.A.S.T.** (a **L**ingering image, **A**nswered theme, and **S**hort **T**ruth).",
+        "question": "What single memorable sentence will stay in your reader's mind after the story ends?",
+        "lower": "Some adventures fit inside a backpack, while the best ones stay inside your heart forever.",
+        "upper": "The map was safely back in its drawer, yet both of them knew the horizon would never look ordinary again.",
+    },
+
+    # --- NON-FICTION & GENERAL BLOCKS ---
+    "Headline & Introduction": {
+        "blueprint": "Hook readers with **H.I.T.** (**H**eadline that is short and punchy, **I**ntroduction naming the topic, and **T**hesis/purpose).",
+        "question": "What catchy title and opening 2 sentences will tell the reader exactly what your piece is about?",
+        "lower": "**Amazing Arctic Foxes**\nArctic foxes are clever mammals that survive in freezing snowy lands. In this report, you will discover where they live and how they stay warm.",
+        "upper": "**Masters of the Frozen North: Inside the World of the Arctic Fox**\nBuilt to endure temperatures far below freezing, the Arctic fox is one of nature’s most adaptable predators. This report examines its habitat, survival adaptations, and diet.",
+    },
+    "Title & Introduction": {
+        "blueprint": "Set the scene with **T.W.W.** (**T**itle that fits, **W**ho/what is involved, and **W**hen/where it took place).",
+        "question": "What title and opening sentences introduce the person or event and grab the reader's interest?",
+        "lower": "**Our Unforgettable Trip to the Science Museum**\nLast Friday, Year 4 visited the City Science Museum to explore space rockets. I felt so excited as we stepped off the school bus!",
+        "upper": "**A Day Among the Stars: My Visit to the National Space Centre**\nLast Thursday morning, our class travelled to the National Space Centre for an immersive astronomy workshop. From the moment the towering rocket gallery came into view, I knew it would be an unforgettable day.",
+    },
+    "Header (Date, Address & Greeting) & Introduction": {
+        "blueprint": "Open properly with **G.A.P.** (**G**reeting matched to formality, **A**ddress/date layout, and **P**urpose in sentence one).",
+        "question": "Who are you writing to, how should you greet them, and why are you writing right now?",
+        "lower": "14 Palm Street\n25 November 2026\n\nDear Grandma,\nI am writing to tell you all about my school sports day yesterday!",
+        "upper": "14 Palm Street\nAlexandria\n25 November 2026\n\nDear Headteacher,\nI am writing to propose installing two solar-powered water fountains in the main playground.",
+    },
+    "Header (Date, Address & Greeting) & Opening Paragraph": {
+        "blueprint": "Start warmly with **G.W.N.** (**G**reeting, **W**arm friendly opener, and **N**ews/reason for writing).",
+        "question": "How will you greet your friend warmly and share your big news right away?",
+        "lower": "25 November 2026\n\nDear Sam,\nHow are you? I couldn’t wait to tell you about the amazing treehouse my dad and I built this weekend!",
+        "upper": "25 November 2026\n\nDear Sam,\nI hope you’ve had a brilliant week! You won’t believe what happened during our coastal field trip yesterday.",
+    },
+    "Your Address & Date & Recipient & Salutation": {
+        "blueprint": "Format formally with **A.D.R.S.** (your **A**ddress, today's **D**ate, **R**ecipient's title/address, and formal **S**alutation).",
+        "question": "Whose name or title belongs in the formal address and greeting?",
+        "lower": "12 Oak Lane\n25 November 2026\n\nTo the Park Manager,\nDear Sir or Madam,",
+        "upper": "12 Oak Lane, Alexandria\n25 November 2026\n\nThe Parks & Recreation Director\nCity Council Offices\nDear Director,",
+    },
+    "Day and Date & Salutation": {
+        "blueprint": "Open your diary with **D.A.T.E.** (**D**ay of the week, full **D**ate, and personal **S**alutation like *Dear Diary,*).",
+        "question": "What day and date is it, and how do you greet your diary?",
+        "lower": "Wednesday, 25th November 2026\nDear Diary,",
+        "upper": "Wednesday, 25 November 2026\nDear Diary,",
+    },
+    "Block 1: Headline": {
+        "blueprint": "Write a headline using **S.P.A.R.K.** (**S**hort, **P**unchy, **A**ctive verb, and **R**elevant **K**eywords).",
+        "question": "What short, attention-grabbing headline sums up your entire piece in under 8 words?",
+        "lower": "Local Students Plant 200 Trees in City Park",
+        "upper": "Junior Eco-Squad Transforms Wasteland into Thriving Woodland",
+    },
+    "Block 2: Sub-headline (optional) & Byline": {
+        "blueprint": "Add journalistic credibility with **S.B.** (a clarifying **S**ub-headline plus **B**yline with reporter name and role).",
+        "question": "What extra detail belongs in the sub-headline, and who is reporting this story?",
+        "lower": "Families and teachers join hands to make the neighbourhood greener.\nBy Tariq Hassan, Junior Reporter",
+        "upper": "Over 150 volunteers braved chilly winds on Saturday to restore native wildlife habitats.\nBy Tariq Hassan, Education Correspondent",
+    },
+    "Block 4: Lead Paragraph": {
+        "blueprint": "Pack the facts fast with **5W** (**W**ho, **W**hat, **W**hen, **W**here, and **W**hy in 2 crisp sentences).",
+        "question": "Who was involved, what happened, and when and where did it take place?",
+        "lower": "Yesterday morning, Year 5 pupils planted 200 young oak trees at Greenview Park to help local birds and insects.",
+        "upper": "More than 150 students and local residents gathered at Greenview Park on Saturday morning to plant 200 native saplings in an effort to combat urban heat and restore wildlife habitats.",
+    },
+    "Block 5: Main Body": {
+        "blueprint": "Develop the report with **F.Q.T.** (**F**acts in sequence, eyewitness **Q**uotes, and **T**ime connectives).",
+        "question": "What happened step by step, and what did an eyewitness say about it?",
+        "lower": 'First, park rangers showed everyone how to dig deep holes. "I am so proud of our hardworking pupils," said Mrs. Patel.',
+        "upper": 'Following a safety briefing from forestry rangers, teams worked in relays to secure each sapling with protective guards. "Seeing young people take ownership of their environment is truly inspiring," remarked Head Ranger Kareem.',
+    },
+    "Block 2: Introduction": {
+        "blueprint": "Frame your topic with **O.V.E.R.** (**O**pening hook, **V**iewpoint or background, and **E**ssential **R**oadmap).",
+        "question": "What background context does your reader need before your main points begin?",
+        "lower": "Every day, millions of plastic bottles are thrown away. Learning how to recycle properly helps keep our oceans clean and safe.",
+        "upper": "While plastic packaging offers undeniable convenience, single-use waste poses a growing threat to marine ecosystems. Understanding both sides of this issue is essential before changing school policy.",
+    },
+    "Block 3: Body Paragraphs": {
+        "blueprint": "Organise facts with **S.P.E.C.** (**S**ubheading, **P**oint sentence, **E**vidence/example, and **C**onnective).",
+        "question": "What subheading, key fact, and real example will make this section crystal clear?",
+        "lower": "**Winter Coats**\nArctic foxes grow thick white fur in winter. This helps them hide in the snow and stay warm in freezing winds.",
+        "upper": "**Seasonal Camouflage and Insulation**\nDuring winter, the Arctic fox develops a dense, snow-white coat that traps body heat and conceals it from prey. By summer, this fur sheds into a shorter brown-grey pelt that blends seamlessly with tundra rocks.",
+    },
+    "Block 3: Main Body": {
+        "blueprint": "Build strong paragraphs with **P.E.E.L.** (**P**oint first, **E**vidence or step, **E**xplanation, and **L**ink).",
+        "question": "What is your main point or step here, and what detail or example proves it?",
+        "lower": "First, pour two cups of warm water into the bowl and stir slowly until the salt dissolves completely.",
+        "upper": "Firstly, extending break times by ten minutes improves classroom concentration, because physical movement boosts alertness and reduces restlessness during afternoon lessons.",
+    },
+    "Block 4: Conclusion": {
+        "blueprint": "Wrap up clearly with **S.F.L.** (**S**ummary of key points, **F**inal thought, and **L**ooking ahead).",
+        "question": "What final takeaway or future outlook will leave your reader satisfied?",
+        "lower": "In conclusion, recycling takes only a few seconds each day, and together we can protect our planet for the future.",
+        "upper": "Ultimately, combining small daily habits with community action ensures that fragile habitats remain protected for generations to come.",
+    },
+    "Block 5: Conclusion & Closing / Sign-Off": {
+        "blueprint": "End your diary with **R.H.S.** (**R**eflection on the day, **H**ope for tomorrow, and **S**ign-off).",
+        "question": "How do you feel as the day ends, and what are you looking forward to tomorrow?",
+        "lower": "I am exhausted now, but today was the best day ever! I can’t wait to show my medal at school tomorrow.\nGoodnight,\nMaya",
+        "upper": "Looking back tonight, I realise that stepping outside my comfort zone was worth every nervous second. Tomorrow brings a brand-new challenge, and I finally feel ready.\nUntil tomorrow,\nMaya",
+    },
+    "Block 4: Sign-Off (Conclusion, Closing & Signature)": {
+        "blueprint": "Close formally with **A.C.S.** (**A**ction requested, polite **C**losing phrase like *Yours sincerely/faithfully*, and **S**ignature).",
+        "question": "What response do you hope for, and which formal sign-off matches your greeting?",
+        "lower": "Thank you for reading my letter. I hope to hear from you soon.\nYours faithfully,\nLayla Ahmed",
+        "upper": "Thank you for considering this proposal; I would welcome the opportunity to discuss it further at your convenience.\nYours sincerely,\nLayla Ahmed",
+    },
+    "Block 4: Sign-Off (Closing, Signing Off & Name)": {
+        "blueprint": "End warmly with **W.S.N.** (**W**arm wish for your friend, friendly **S**igning-off phrase, and your **N**ame).",
+        "question": "What friendly goodbye wish will you send your friend before signing your name?",
+        "lower": "Write back soon and tell me all your news!\nYour best friend,\nAdam",
+        "upper": "Let’s catch up properly this weekend so I can show you the photos!\nWarmest wishes,\nAdam",
+    },
+    "Block 4: Conclusion & Call to Action": {
+        "blueprint": "Inspire action with **S.U.R.E.** (**S**ummarise your stance, **U**rgency now, and **R**eader action **E**xactly).",
+        "question": "What specific action do you want your reader to take today?",
+        "lower": "Don’t wait—bring a reusable bottle to school tomorrow and help stop plastic pollution!",
+        "upper": "The choice belongs to all of us: pledge to swap single-use plastics for reusable alternatives today and help safeguard our coastline.",
+    },
+    "Block 1: Eye-Catching Title": {
+        "blueprint": "Grab attention with **B.O.L.D.** (**B**enefit clear, **O**riginal hook, and **L**ively **D**irect address).",
+        "question": "What bold leaflet title will make someone pick it up immediately?",
+        "lower": "Discover the Magic of Sunnydale Wildlife Sanctuary!",
+        "upper": "Step Into the Wild: Your Adventure Awaits at Sunnydale Sanctuary!",
+    },
+    "Block 2: Introduction / Why It Matters": {
+        "blueprint": "Connect fast with **Y.O.U.** (**Y**ou-focused question, **O**pportunity/problem, and **U**rgent reason to care).",
+        "question": "Why should the reader care about this topic right now?",
+        "lower": "Do you love animals and outdoor adventures? Our local nature reserve needs young explorers like you to help protect rare birds!",
+        "upper": "Have you ever wondered what happens to injured hedgehogs and owls in our area? Every visit to Sunnydale directly funds wildlife rescue and rehabilitation.",
+    },
+    "Block 3: Key Sections": {
+        "blueprint": "Organise clearly with **H.B.F.** (**H**eadings for each section, **B**ullet points, and persuasive **F**acts).",
+        "question": "Which 2–3 subheadings and snappy bullet points show the best features or reasons?",
+        "lower": "**What You Can Do:**\n• Walk the treetop trail\n• Feed the rescued ducks\n• Join our Saturday nature club",
+        "upper": "**Unmissable Attractions:**\n• **Treetop Canopy Walk:** Spot over 40 native bird species from 15 metres up.\n• **Junior Ranger Workshops:** Hands-on tracking and habitat-building sessions every Saturday.",
+    },
+    "Block 4: Call to Action": {
+        "blueprint": "Finish with **W.W.W.** (**W**hat to do now, **W**here/when to go, and **W**hy not to wait).",
+        "question": "What exact next step, time, or place tells the reader how to get involved?",
+        "lower": "Visit us this Saturday from 9 AM at Oakwood Gate—kids enter free!",
+        "upper": "Book your family pass online today at sunnydale-wild.org—open daily from 9:00 AM with free entry for under-12s!",
+    },
+    "Block 1: Powerful Opening": {
+        "blueprint": "Command the room with **R.I.S.E.** (**R**hetorical question, **I**nclusive *we/us*, and **S**trong **E**motive statement).",
+        "question": "What powerful opening question or bold statement will make every listener look up?",
+        "lower": "Imagine a playground where every single child has someone to play with. Wouldn’t that make our school the happiest place in town?",
+        "upper": "Close your eyes for three seconds and picture our oceans choked with plastic. Now ask yourselves: if we do not act today, who will?",
+    },
+    "Block 2: The Problem / Why Now": {
+        "blueprint": "Highlight urgency with **F.I.X.** (**F**act or statistic, **I**mpact on people, and why we must act **X**-now).",
+        "question": "What serious problem is happening right now, and why can't we wait to solve it?",
+        "lower": "Right now, dozens of broken books sit on our library shelves, leaving pupils with nothing exciting to read during wet break times.",
+        "upper": "Every single week, over three hundred plastic bottles are discarded on our school grounds alone—waste that will pollute our soil for centuries unless we change course today.",
+    },
+    "Block 3: Main Arguments": {
+        "blueprint": "Persuade with **R.O.3** (**R**ule of three, **O**pinion backed by facts, and **3** emotive or modal verbs like *must/will*).",
+        "question": "What are your strongest reasons, and how can you use the Rule of Three to make them memorable?",
+        "lower": "New books will spark our imagination, boost our reading skills, and make everyone excited to visit the library!",
+        "upper": "Introducing refill stations will slash litter, save families money, and prove that our generation leads by example—not excuses.",
+    },
+    "Block 4: Memorable Closing": {
+        "blueprint": "Leave an echo with **C.A.L.L.** (**C**all to action, **A**ll-together *we*, and **L**asting **L**ine).",
+        "question": "What final rallying call will leave your audience ready to applaud and act?",
+        "lower": "Together, we can build a brighter library—so please vote yes today!",
+        "upper": "Let us be the school that chose action over apathy—stand with us, sign the pledge, and change our future starting today!",
+    },
+    "Block 1: Catchy Slogan": {
+        "blueprint": "Hook buyers with **A.P.P.** (**A**lliteration or rhyme, **P**ower adjective, and **P**roduct benefit).",
+        "question": "What short, snappy slogan will stick in a customer's head all day?",
+        "lower": "Zip-Zoom Bottles: Cool Drinks, Zero Leaks, Pure Fun!",
+        "upper": "HydroSpark: Sip Smarter, Stay Cooler, Save the Planet!",
+    },
+    "Block 2: The Problem (Brief)": {
+        "blueprint": "Spotlight the pain with **T.I.R.E.D.** (**T**ired of X? **I**rritating daily problem, and **R**eader empathy).",
+        "question": "What everyday annoyance does your customer hate dealing with?",
+        "lower": "Tired of soggy school bags and lukewarm water by lunchtime?",
+        "upper": "Frustrated by flimsy water bottles that sweat in your backpack and turn icy drinks lukewarm before noon?",
+    },
+    "Block 3: The Solution": {
+        "blueprint": "Sell the solution with **F.A.B.** (**F**eatures of the item, **A**dvantages over rivals, and **B**enefits to you).",
+        "question": "How does your product solve the problem better than anything else?",
+        "lower": "With triple-seal lids and rainbow grip bands, Zip-Zoom keeps water icy cold for 24 hours without a single drop spilled!",
+        "upper": "Engineered with double-walled stainless steel and a leak-proof magnetic cap, HydroSpark locks in arctic chill for 24 hours while fitting effortlessly into any side pocket.",
+    },
+    "Block 4: Final Call to Action": {
+        "blueprint": "Close the sale with **N.O.W.** (**N**ew offer/deal, **O**rder step, and **W**hy act fast).",
+        "question": "What special offer or urgent instruction tells the buyer to get it right now?",
+        "lower": "Grab yours at the school bookshop today and get a free sticker pack while stocks last!",
+        "upper": "Order online today at hydrospark.com using code HERO20 for 20% off—limited launch stock available!",
+    },
+}
+
+
+def get_step_blueprint_and_wagoll(subgenre, step_label, age_band):
+    """Return (blueprint_explanation_with_question, built_in_wagoll) using zero AI tokens."""
+    age_k = age_key_for_band(age_band)
+    entry = BLUEPRINT_SCHEMAS_AND_WAGOLL.get(step_label)
+    if not entry:
+        clean_label = step_label.split(":", 1)[-1].strip()
+        for k, v in BLUEPRINT_SCHEMAS_AND_WAGOLL.items():
+            if k.endswith(clean_label):
+                entry = v
+                break
+    if not entry:
+        entry = {
+            "blueprint": f"Structure **{step_label}** using **P.E.E.** (**P**urpose sentence first, **E**vidence or vivid detail, and **E**ffective link to the next part).",
+            "question": f"What key idea or detail must your reader understand in **{step_label}**?",
+            "lower": "First, gather all the clear facts and describing words that fit this part of your writing so the reader can picture every detail.",
+            "upper": "Begin with a clear topic focus, support it with precise detail and varied sentence structures, and connect smoothly to the next section.",
+        }
+    explanation = f"{entry['blueprint']} *{entry['question']}*"
+    wagoll = entry.get(age_k, entry["lower"])
+    return explanation, wagoll
+
+
+def block_extra_help_prompt(age_band, genre, subgenre, title, writing_prompt, target_blocks, section_label):
+    """Lightweight prompt generating ONLY vocabulary and key phrases (WAGOLL & explanation are built-in)."""
+    guidance = block_guidance_context(subgenre, age_band, target_blocks)
+    display_genre = subgenre.replace("::", " — ")
+    return f"""
+You are a primary writing coach working with a student in {age_band}.
+
+Overall Piece Prompt: "{writing_prompt}"
+Genre: {genre} ({display_genre})
+Topic / Title: "{title}"
+Target Section(s): "{section_label}"
+
+Apply the exact genre structure, checklist, and features below:
+{guidance}
+
+CRITICAL ALIGNMENT & TOKEN RULES:
+1. Every single phrase in "point_scoring_phrases" and every word in "suggested_vocabulary" MUST directly fit BOTH the genre/skill ({display_genre}), the exact purpose of "{section_label}", and the student's grade level ({age_band}).
+2. "point_scoring_phrases": Provide STRICTLY 3 or 4 strong sentence starters or point-scoring key phrases for "{section_label}" matched to {age_band}.
+3. "suggested_vocabulary": Provide STRICTLY 3 or 4 topic- and genre-appropriate vocabulary words for "{section_label}" matched to {age_band}, each with a clear, child-friendly meaning.
+
+Return ONLY valid JSON in this exact shape:
+{{
+  "point_scoring_phrases": ["...", "...", "..."],
+  "suggested_vocabulary": [
+    {{"word": "...", "meaning": "..."}},
+    {{"word": "...", "meaning": "..."}},
+    {{"word": "...", "meaning": "..."}}
+  ]
+}}
+
+{AGE_BAND_GUIDANCE[age_band]}
+{SAFETY_RULES}
+""".strip()
 def block_feedback_prompt(age_band, subgenre, block_name, text, personal_instruction=""):
     guidance = block_guidance_context(subgenre, age_band, [block_name])
     return f"""
