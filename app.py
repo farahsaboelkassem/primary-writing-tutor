@@ -1381,7 +1381,7 @@ if nav == "🥋 The Writing Dojo":
     with main_right:
         render_rule_carousel(subgenre, age_band)
 
-with main_left:
+    with main_left:
         st.markdown("### 🧱 Build Your Piece Step by Step")
         draft_parts = []
         for i, step in enumerate(grouped_steps):
@@ -1482,7 +1482,7 @@ with main_left:
                 )
                 draft_parts.append((step_label, part_text))
 
-                # 4. Block-by-block AI check (unchanged, grade-band matched)
+               # 4. Block-by-block AI check (unchanged, grade-band matched)
                 if st.button(f"🦉 Check {step_label}", key=f"btn_fb_{step_slug}"):
                     if word_count(part_text) < 4:
                         st.warning("Write at least one sentence first so Inky can help!")
@@ -1506,41 +1506,6 @@ with main_left:
 
     full_draft = "\n\n".join(txt.strip() for _, txt in draft_parts if txt.strip())
     st.markdown("---")
-    c_send, c_ws = st.columns(2)
-    with c_send:
-        if st.button("🚀 Send Full Piece to Marking Arena", type="primary", use_container_width=True):
-            if not full_draft:
-                st.warning("Write at least one part before sending to the Arena!")
-            else:
-                st.session_state["arena_text"] = full_draft
-                st.session_state["arena_genre"] = genre
-                st.session_state["arena_subgenre"] = clean_subgenre
-                st.success("Copied to the Marking Arena! Switch to '🏟️ Marking Arena' in the sidebar.")
-    with c_ws:
-        if st.button("🖨️ Build Printable Worksheet", use_container_width=True):
-            with st.spinner("Creating your printable worksheet..."):
-                try:
-                    ws = call_json(
-                        worksheet_content_prompt(age_band, subgenre, title, [s["label"] for s in grouped_steps]),
-                        "worksheet",
-                        temperature=0.65,
-                    )
-                    st.session_state["last_worksheet"] = build_worksheet_html(
-                        st.session_state["student_name"], age_band, genre, clean_subgenre, title, ws
-                    )
-                    award_xp(10)
-                except Exception as exc:
-                    st.error(str(exc))
-
-    if st.session_state.get("last_worksheet"):
-        st.download_button(
-            "⬇️ Download Printable Worksheet (HTML — open & press Ctrl+P to print)",
-            data=st.session_state["last_worksheet"],
-            file_name=f"{re.sub(r'[^a-zA-Z0-9]+', '_', title)}.html",
-            mime="text/html",
-            use_container_width=True,
-        )
-
 # ==================================================================
 # VIEW 2: MARKING ARENA (Cambridge 25-Mark Rubric + OCR + Stage 6 Audit)
 # ==================================================================
