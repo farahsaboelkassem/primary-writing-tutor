@@ -59,7 +59,7 @@ def get_openrouter_api_key() -> str:
             return str(st.secrets[key_name]).strip()
 
     # 2. Check [openrouter] section
-    if "openrouter" in st.secrets:from 
+    if "openrouter" in st.secrets:
         or_section = st.secrets["openrouter"]
         for key_name in ("api_key", "OPENROUTER_API_KEY", "key"):
             if key_name in or_section and str(or_section[key_name]).strip():
