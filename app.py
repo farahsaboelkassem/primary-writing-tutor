@@ -1131,7 +1131,7 @@ def render_rule_carousel(subgenre: str, age_band: str):
 # Both sections share one screen design, which lives in lesson_hub.py.
 # ------------------------------------------------------------------
 from lesson_hub import render_hub
-
+from question_bank import bank_questions, bank_record
 try:
     from language_lessons import LEVELS as LANGUAGE_LEVELS
 except Exception as _la_exc:  # keep the rest of the app working if the file is missing
@@ -1143,8 +1143,6 @@ try:
 except Exception as _gr_exc:
     GRAMMAR_LEVELS = None
     print(f"[inky] grammar lessons could not be loaded: {_gr_exc}")
-
-
 def render_language_arts():
     render_hub({
         "prefix": "la",
@@ -1155,6 +1153,8 @@ def render_language_arts():
         "award_xp": award_xp,
         "log": safe_log_activity,
         "stage": lambda: st.session_state.get("age_band", ""),
+        "question_source": bank_questions,
+        "record_answers": bank_record,
         "missing": "The language lessons file is missing. Put language_lessons.py in the same folder as app.py, then restart the app.",
     })
 
@@ -1169,9 +1169,12 @@ def render_grammar():
         "award_xp": award_xp,
         "log": safe_log_activity,
         "stage": lambda: st.session_state.get("age_band", ""),
+        "question_source": bank_questions,
+        "record_answers": bank_record,
         "back_label": "📚 Back to topic",
         "missing": "The grammar lessons file is missing. Put grammar_lessons.py in the same folder as app.py, then restart the app.",
     })
+
 # ------------------------------------------------------------------
 # App Init & Sidebar
 # ------------------------------------------------------------------

@@ -46,18 +46,74 @@ def level_key_for(c, level_key, lesson_id):
     return f"{level_key}::{lesson_id}"
 
 
-def new_run(level, lesson):
-    """Fresh practice run: shuffled questions and shuffled answers."""
-    questions = []
-    for q in lesson["questions"]:
-        options = list(q["options"])
-        correct = options[0]  # lessons list the correct answer first
+TYPE_LABELS = {
+    "multiple_choice": "Choose the answer",
+    "true_false": "True or false?",
+    "fill_blank": "Type your answer",
+}
+
+
+def normalise(text, case_sensitive=False):
+    """Make typed answers fair to compare: tidy spaces, treat curly and straight quotes alike."""
+    t = str(text or "")
+    t = t.replace("\u2019", "'").replace("\u2018", "'").replace("\u201c", '"').replace("\u201d", '"')
+    t = re.sub(r"\s+", " ", t).strip()
+    return t if case_sensitive else t.casefold()
+
+
+def is_correct(q, given):
+    if q.get("type") == "fill_blank":
+        cs = bool(q.get("case_sensitive"))
+        accepted = q.get("accepted") or [q["correct"]]
+        return normalise(given, cs) in {normalise(a, cs) for a in accepted}
+    return given == q["correct"]
+
+
+def builtin_questions(lesson):
+    """A lesson's own questions. The codes match the question bank seed file (lesson_id-01, -02 ...)."""
+    out = []
+    for n, q in enumerate(lesson["questions"], start=1):
+        out.append({"code": f"{lesson['id']}-{n:02d}", "type": "multiple_choice", "kind": q["kind"], "q": q["q"],
+                    "options": list(q["options"]), "correct": q["options"][0], "why": q["why"]})
+    return out
+
+
+def source_questions(c, lesson):
+    """Questions for a new run: from the section's question source if it has any, else the built-ins."""
+    source = c.get("question_source")
+    if source:
+        try:
+            questions = source(lesson)
+            if questions:
+                return questions
+        except Exception as exc:
+            print(f"[inky] question source failed, using built-in questions: {exc}")
+    return builtin_questions(lesson)
+
+
+def prepare_question(q):
+    """Copy a question and shuffle its answers (true/false keeps its order; typed answers have none)."""
+    out = dict(q)
+    out.setdefault("type", "multiple_choice")
+    out.setdefault("correct", out["options"][0] if out.get("options") else "")
+    if out["type"] == "multiple_choice":
+        options = list(out["options"])
         random.shuffle(options)
-        questions.append({"kind": q["kind"], "q": q["q"], "options": options, "correct": correct, "why": q["why"]})
-    random.shuffle(questions)
+        out["options"] = options
+    elif out["type"] == "true_false":
+        out["options"] = ["True", "False"]
+    else:
+        out["options"] = []
+    return out
+
+
+def new_run(level, lesson, questions):
+    """Fresh practice run from the given questions, in a random order."""
+    prepared = [prepare_question(q) for q in questions]
+    random.shuffle(prepared)
     return {
         "id": "%06x" % random.randrange(16 ** 6), "level": level, "lesson_id": lesson["id"],
-        "questions": questions, "index": 0, "score": 0, "checked": False, "choice": None,
+        "questions": prepared, "index": 0, "score": 0, "checked": False, "choice": None,
         "answers": [], "saved": False,
     }
 
@@ -167,39 +223,56 @@ def question(c, run):
     p = c["prefix"]
     questions, idx = run["questions"], run["index"]
     q = questions[idx]
+    qtype = q.get("type", "multiple_choice")
     st.progress(idx / len(questions), text=f"Question {idx + 1} of {len(questions)}")
-    st.caption("🔍 Spot it" if q["kind"] == "spot" else "✍️ Use it")
+    skill = "🔍 Spot it" if q["kind"] == "spot" else "✍️ Use it"
+    st.caption(f"{skill} · {TYPE_LABELS.get(qtype, '')}")
     st.markdown(f"#### {md(q['q'])}")
+    widget_key = f"{p}_choice_{run['id']}_{idx}"
 
     if not run["checked"]:
-        choice = st.radio("Choose your answer", q["options"], index=None,
-                          key=f"{p}_choice_{run['id']}_{idx}", label_visibility="collapsed")
+        if qtype == "fill_blank":
+            choice = st.text_input("Type your answer", key=widget_key, label_visibility="collapsed",
+                                   placeholder="Type your answer here")
+            empty = not str(choice or "").strip()
+        else:
+            choice = st.radio("Choose your answer", q["options"], index=None, key=widget_key,
+                              label_visibility="collapsed")
+            empty = choice is None
         if st.button("Check answer", type="primary", use_container_width=True, key=f"{p}_check_{run['id']}_{idx}"):
-            if choice is None:
-                st.warning("Choose an answer first.")
+            if empty:
+                st.warning("Type an answer first." if qtype == "fill_blank" else "Choose an answer first.")
                 return
-            correct = choice == q["correct"]
-            run["answers"].append({"q": q["q"], "chosen": choice, "correct_text": q["correct"],
-                                   "correct": correct, "why": q["why"]})
+            correct = is_correct(q, choice)
+            run["answers"].append({"q": q["q"], "chosen": choice, "correct_text": q["correct"], "correct": correct,
+                                   "why": q["why"], "code": q.get("code"), "type": qtype})
             if correct:
                 run["score"] += 1
             run["checked"], run["choice"] = True, choice
             st.rerun()
         return
 
-    for opt in q["options"]:
-        if opt == q["correct"]:
-            st.markdown(f"✅ **{plain(opt)}**")
-        elif opt == run["choice"]:
-            st.markdown(f"❌ {plain(opt)}")
+    last = run["answers"][-1]
+    if qtype == "fill_blank":
+        if last["correct"]:
+            st.markdown(f"✅ **{plain(run['choice'])}**")
         else:
-            st.markdown(f"◻️ {plain(opt)}")
-    if run["choice"] == q["correct"]:
+            st.markdown(f"❌ {plain(run['choice'])}")
+            st.markdown(f"✅ Correct answer: **{plain(q['correct'])}**")
+    else:
+        for opt in q["options"]:
+            if opt == q["correct"]:
+                st.markdown(f"✅ **{plain(opt)}**")
+            elif opt == run["choice"]:
+                st.markdown(f"❌ {plain(opt)}")
+            else:
+                st.markdown(f"◻️ {plain(opt)}")
+    if last["correct"]:
         st.success(f"🎉 Correct! {q['why']}")
     else:
         st.error(f"Not quite. {q['why']}")
-    last = idx + 1 >= len(questions)
-    if st.button("See my results" if last else "Next question →", type="primary", use_container_width=True,
+    is_last = idx + 1 >= len(questions)
+    if st.button("See my results" if is_last else "Next question →", type="primary", use_container_width=True,
                  key=f"{p}_next_{run['id']}_{idx}"):
         run["index"] += 1
         run["checked"], run["choice"] = False, None
@@ -230,6 +303,11 @@ def results(c, level_key, lesson, pool, run):
                 c["log"]("quiz", c["section"], str(lesson.get("title") or lesson["id"]),
                          score_or_grade=f"{score}/{total}", genre_or_skill=str(level_key), xp_earned=gained)
             run["xp_message"] = f"+{gained} XP for finishing this lesson for the first time!"
+        if c.get("record_answers"):  # remember which questions were seen, so the next run is fresh
+            try:
+                c["record_answers"](lesson, run["answers"])
+            except Exception as exc:
+                print(f"[inky] could not record answers: {exc}")
 
     ratio = score / max(total, 1)
     st.progress(1.0, text="Practice complete")
@@ -263,7 +341,7 @@ def results(c, level_key, lesson, pool, run):
     c1, c2, c3 = st.columns(3)
     with c1:
         if st.button("🔁 Try again", use_container_width=True, key=f"{p}_again_{run['id']}"):
-            _go(c, run=new_run(level_key, lesson))
+            _go(c, run=new_run(level_key, lesson, source_questions(c, lesson)))
             st.rerun()
     with c2:
         if st.button(c.get("back_label", "📚 All lessons"), use_container_width=True, key=f"{p}_all_{run['id']}"):
@@ -291,7 +369,7 @@ def lesson_page(c, level_key, lesson, pool, topic=None):
     if run is None:
         teach(lesson)
         if st.button("✏️ Start practice", type="primary", use_container_width=True, key=f"{p}_start_{lesson['id']}"):
-            _go(c, run=new_run(level_key, lesson))
+            _go(c, run=new_run(level_key, lesson, source_questions(c, lesson)))
             st.rerun()
         return
 
@@ -318,6 +396,8 @@ def render_hub(c):
       award_xp   function(points, badge_or_None)
       log        function that saves an activity to the student's account (optional)
       stage      function returning the student's school stage text (optional)
+      question_source  function(lesson) -> list of questions for a fresh run, or None (optional)
+      record_answers   function(lesson, answers) that remembers what was seen (optional)
       missing    message to show if the lessons file could not be loaded
     """
     levels = c.get("levels")
