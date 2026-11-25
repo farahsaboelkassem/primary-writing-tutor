@@ -59,7 +59,7 @@ def get_openrouter_api_key() -> str:
             return str(st.secrets[key_name]).strip()
 
     # 2. Check [openrouter] section
-    if "openrouter" in st.secrets:
+    if "openrouter" in st.secrets:from 
         or_section = st.secrets["openrouter"]
         for key_name in ("api_key", "OPENROUTER_API_KEY", "key"):
             if key_name in or_section and str(or_section[key_name]).strip():
@@ -415,7 +415,7 @@ UNIVERSE_CSS = {
     linear-gradient(#8f3350, #8f3350) 0 3px / 100% 100% no-repeat;
 }
 """,
-    "Vocabulary & Language": """
+    "Vocabulary Vault": """
 :root { --accent:#0b7f72; --accent-light:#0f8f7e; --accent-dark:#086256; --accent-soft:#e2f7f3; --hero-a:#0a5d6b; --hero-b:#22b99c; }
 .stApp { background: linear-gradient(165deg, #04252f 0%, #0a4f5a 48%, #0f7f6e 100%) !important; }
 .stApp::before {
@@ -1134,6 +1134,7 @@ def render_rule_carousel(subgenre: str, age_band: str):
 # ------------------------------------------------------------------
 from lesson_hub import render_hub
 from question_bank import bank_questions, bank_record
+from vocabulary_vault import render_vocabulary_vault, render_guide_extras, render_arena_suggestions
 try:
     from language_lessons import LEVELS as LANGUAGE_LEVELS
 except Exception as _la_exc:  # keep the rest of the app working if the file is missing
@@ -1145,6 +1146,7 @@ try:
 except Exception as _gr_exc:
     GRAMMAR_LEVELS = None
     print(f"[inky] grammar lessons could not be loaded: {_gr_exc}")
+
 def render_language_arts():
     render_hub({
         "prefix": "la",
@@ -1160,7 +1162,14 @@ def render_language_arts():
         "missing": "The language lessons file is missing. Put language_lessons.py in the same folder as app.py, then restart the app.",
     })
 
-
+def vault_ai_quiz(focus, n, previous_words):
+    """Used by the Vocabulary Vault's AI quiz."""
+    data = call_json(
+        quiz_prompt(st.session_state["age_band"], focus, n=n, previous_words=previous_words),
+        "quiz",
+        temperature=0.75,
+    )
+    return data.get("questions", [])
 def render_grammar():
     render_hub({
         "prefix": "gr",
@@ -1244,7 +1253,7 @@ with st.sidebar:
             "🥋 The Writing Dojo",
             "🏟️ Marking Arena",
             "📖 Reading",
-            "📚 Vocabulary & Language",
+            "📚 Vocabulary Vault",
             "✏️ Grammar & Punctuation",
             "🎭 Language Arts",
             "🏆 Progress & Badges",
@@ -1706,6 +1715,12 @@ elif nav == "🏟️ Marking Arena":
                     st.markdown(f"**{CATEGORY_LABELS[cat]}**")
                     st.markdown("<br>".join(lines), unsafe_allow_html=True)
 
+      render_arena_suggestions(
+    genre=str(res.get("subgenre") or "").split("::")[0],
+    age_band=age_band,
+    key_prefix="arena",
+    award_xp=award_xp,
+)
 # ==================================================================
 # VIEW: READING
 # ==================================================================
@@ -1715,122 +1730,16 @@ elif nav == "📖 Reading":
 # ==================================================================
 # VIEW 3: VOCABULARY & LANGUAGE
 # ==================================================================
-elif nav == "📚 Vocabulary & Language":
+elif nav == "📚 Vocabulary Vault":
     render_inky_bubble(
-        "Upgrade everyday words into vivid, expressive language, test yourself with a fresh vocabulary quiz, and collect new words!"
+        "Welcome to the Vault! Browse word and phrase lists by genre, build your own lists, then test yourself."
     )
-
-    tab_lang, tab_quiz, tab_bank = st.tabs(["🎨 Language & Word Upgrades", "🎯 Vocabulary Quiz", "📖 My Word Bank"])
-
-    with tab_lang:
-        st.markdown("#### ✨ Power Up Everyday Words")
-        for title_l, basic_w, vivid_w, tip_l in LANGUAGE_EXAMPLES:
-            st.markdown(
-                f"""
-                <div class="adventure-card">
-                    <div class="step-pill">{title_l}</div>
-                    <div><b>Instead of:</b> {basic_w} &nbsp;➡️&nbsp; <b>Try:</b> <span style="color:#FF6F00;font-weight:700;">{vivid_w}</span></div>
-                    <div style="font-size:0.9rem;margin-top:0.25rem;">{tip_l}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-    with tab_quiz:
-        q_col1, q_col2 = st.columns([2, 1])
-        with q_col1:
-            quiz_focus = st.selectbox(
-                "Choose Vocabulary Focus",
-                [
-                    "Mixed Vocabulary",
-                    "Shades of Meaning",
-                    "Powerful Verbs",
-                    "Powerful Adjectives",
-                    "Adverbs",
-                    "Common Collective Nouns",
-                ],
-            )
-        with q_col2:
-            st.markdown("<div style='height:1.75rem;'></div>", unsafe_allow_html=True)
-            if st.button("🎲 New 6-Question Quiz", type="primary", use_container_width=True):
-                with st.spinner("Preparing a fresh vocabulary challenge..."):
-                    try:
-                        qd = call_json(
-                            quiz_prompt(
-                                age_band,
-                                quiz_focus,
-                                n=6,
-                                previous_words=st.session_state["quiz_word_history"],
-                            ),
-                            "quiz",
-                            temperature=0.75,
-                        )
-                        st.session_state["quiz_data"] = qd.get("questions", [])
-                        st.session_state["quiz_score"] = None
-                        for item in st.session_state["quiz_data"]:
-                            if item.get("word"):
-                                st.session_state["quiz_word_history"].append(item["word"])
-                    except Exception as exc:
-                        st.error(str(exc))
-
-        questions = st.session_state.get("quiz_data") or []
-        if questions:
-            user_answers = []
-            for idx, q in enumerate(questions):
-                st.markdown(f"**Q{idx + 1}. {q.get('question', '')}**")
-                choice = st.radio(
-                    f"Select answer for Q{idx + 1}",
-                    q.get("options", []),
-                    key=f"quiz_q_{idx}",
-                    label_visibility="collapsed",
-                )
-                user_answers.append(choice)
-
-            if st.button("✅ Check My Quiz Answers", type="primary"):
-                correct = 0
-                for idx, q in enumerate(questions):
-                    opts = q.get("options", [])
-                    ans_idx = int(q.get("answer_index", 0))
-                    right_opt = opts[ans_idx] if 0 <= ans_idx < len(opts) else ""
-                    if user_answers[idx] == right_opt:
-                        correct += 1
-                        st.success(f"Q{idx + 1}: Correct! **{q.get('word','')}** — {q.get('explanation','')}")
-                    else:
-                        st.error(f"Q{idx + 1}: Answer is **{right_opt}**. {q.get('explanation','')}")
-                award_xp(correct * 8, "📚 Word Wizard" if correct >= 5 else None)
-                safe_log_activity(
-                    "quiz", "Vocabulary Vault", "Vocabulary quiz",
-                    score_or_grade=f"{correct}/{len(questions)}", genre_or_skill="Vocabulary",
-                    xp_earned=correct * 8,
-                )
-                st.info(f"You scored **{correct} / {len(questions)}** (+{correct * 8} XP)!")
-
-    with tab_bank:
-        with st.form("add_word_form", clear_on_submit=True):
-            c1, c2, c3 = st.columns([1.2, 2, 2])
-            new_w = c1.text_input("New Word")
-            new_m = c2.text_input("Meaning")
-            new_e = c3.text_input("Example Sentence")
-            if st.form_submit_button("➕ Add to Word Bank"):
-                if new_w.strip() and new_m.strip():
-                    st.session_state["local_vocab"].insert(
-                        0, {"word": new_w.strip(), "meaning": new_m.strip(), "example": new_e.strip()}
-                    )
-                    sb_save_vocab(st.session_state["student_name"], new_w, new_m, new_e)
-                    safe_save_vocab(new_w.strip(), "Word Bank", new_m.strip(), "Learning")
-                    award_xp(5)
-                    st.success(f"Added '{new_w}'!")
-        for item in st.session_state["local_vocab"]:
-            st.markdown(
-                f"""
-                <div class="adventure-card">
-                    <b style="color:#FF6F00;font-size:1.1rem;">{item.get('word','')}</b> — {item.get('meaning','')}
-                    <div style="font-style:italic;font-size:0.92rem;margin-top:0.2rem;">"{item.get('example','')}"</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
+    render_vocabulary_vault({
+        "award_xp": award_xp,
+        "log": safe_log_activity,
+        "ai_quiz": vault_ai_quiz,
+        "age_band": lambda: st.session_state.get("age_band", ""),
+    })
 # ==================================================================
 # VIEW 4: GRAMMAR & PUNCTUATION
 # ==================================================================
