@@ -1715,7 +1715,7 @@ elif nav == "🏟️ Marking Arena":
                     st.markdown(f"**{CATEGORY_LABELS[cat]}**")
                     st.markdown("<br>".join(lines), unsafe_allow_html=True)
 
-      render_arena_suggestions(
+    render_arena_suggestions(
     genre=str(res.get("subgenre") or "").split("::")[0],
     age_band=age_band,
     key_prefix="arena",
