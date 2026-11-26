@@ -84,6 +84,7 @@ from auth_progress import (
     sign_out_student,
     log_student_activity,
     upsert_student_vocabulary,
+    add_xp,
 )
 
 profile = st.session_state.get("student_profile")
@@ -1013,6 +1014,10 @@ def init_state():
 
 def award_xp(points, badge=None):
     st.session_state["xp"] += points
+    try:
+        add_xp(points)  # save to the student's account, so the XP never restarts
+    except Exception as exc:
+        print(f"[inky] could not save XP to the account: {exc}")
     if badge and badge not in st.session_state["badges"]:
         st.session_state["badges"].append(badge)
     xp = st.session_state["xp"]
@@ -1024,6 +1029,7 @@ def award_xp(points, badge=None):
 
 def safe_log_activity(*args, **kwargs):
     """Save an activity to the student's account without ever breaking the page."""
+    kwargs.setdefault("update_profile_xp", False)
     try:
         return log_student_activity(*args, **kwargs)
     except Exception as exc:
@@ -1190,11 +1196,12 @@ def render_grammar():
 # App Init & Sidebar
 # ------------------------------------------------------------------
 init_state()
-
+# XP lives in the student's account. Load it once per sign-in so it never restarts at zero.
+if st.session_state.get("xp_synced_for") != profile["student_id"]:
+    st.session_state["xp"] = int(profile.get("xp_points") or 0)
+    st.session_state["xp_synced_for"] = profile["student_id"]
 with st.sidebar:
     st.markdown(f"**Student:** {profile['display_name']}")
-    st.markdown(f"**Title:** {profile.get('current_title', 'Novice Scribbler')}")
-    st.markdown(f"**XP:** {profile.get('xp_points', 0)}")
     if st.button("Sign Out", use_container_width=True):
         sign_out_student()
         st.rerun()
@@ -1224,7 +1231,6 @@ with st.sidebar:
         vocab_rows = sb_fetch_vocab(student_name)
         if rows:
             st.session_state["local_history"] = rows
-            st.session_state["xp"] = max(st.session_state["xp"], len(rows) * 25)
         if vocab_rows:
             existing = {v["word"].lower() for v in st.session_state["local_vocab"]}
             for vr in vocab_rows:
@@ -1232,13 +1238,7 @@ with st.sidebar:
                     st.session_state["local_vocab"].append(vr)
         st.session_state["db_synced_for"] = student_name.strip()
 
-    lvl_name, pct, next_xp = level_info(st.session_state["xp"])
-    st.markdown("---")
-    st.markdown(f"### ✨ {lvl_name}")
-    st.markdown(
-        f'<div class="xp-bar-wrap"><div class="xp-bar-fill" style="width:{pct}%;"></div></div>',
-        unsafe_allow_html=True,
-    )
+    xp_panel = st.empty()  # filled in at the very end of the page, so it always shows the latest XP
     st.caption(f"{st.session_state['xp']} XP  •  Next rank at {next_xp} XP")
 
     st.markdown("### 🏅 Badges")
@@ -1864,3 +1864,20 @@ elif nav == "🏆 Progress & Badges":
                 """,
                 unsafe_allow_html=True,
             )
+
+with xp_panel.container():
+    live_xp = int(st.session_state["xp"])
+    lvl_name, pct, next_xp = level_info(live_xp)
+    st.markdown("---")
+    st.markdown(f"**Title:** {(st.session_state.get('student_profile') or profile).get('current_title', 'Novice Scribbler')}")
+    st.markdown(f"### ✨ {lvl_name}")
+    st.markdown(
+        f'<div class="xp-bar-wrap"><div class="xp-bar-fill" style="width:{pct}%;"></div></div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(f"{live_xp} XP  •  Next rank at {next_xp} XP")
+    st.markdown("### 🏅 Badges")
+    st.markdown(
+        "".join(f'<span class="badge-chip">{b}</span>' for b in st.session_state["badges"]),
+        unsafe_allow_html=True,
+    )

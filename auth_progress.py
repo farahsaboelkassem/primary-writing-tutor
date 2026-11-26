@@ -250,6 +250,28 @@ def _recalculate_title_and_badges(student_id: str) -> None:
     refresh_student_profile()
 
 
+def add_xp(points: int) -> bool:
+    """Add XP to the signed-in student's account and keep the session copy in step.
+    The account's xp_points is the one true XP total: the sidebar and Progress & Badges both read it."""
+    profile = st.session_state.get("student_profile")
+    points = int(points or 0)
+    if not profile or points <= 0:
+        return False
+    student_id = profile["student_id"]
+    supabase = get_supabase_client()
+    res = supabase.table("student_profiles").select("xp_points").eq("student_id", student_id).execute()
+    if not res.data:
+        return False
+    new_xp = int(res.data[0].get("xp_points") or 0) + points
+    title = compute_title(new_xp)
+    supabase.table("student_profiles").update(
+        {"xp_points": new_xp, "current_title": title, "last_active": datetime.now(timezone.utc).isoformat()}
+    ).eq("student_id", student_id).execute()
+    profile["xp_points"], profile["current_title"] = new_xp, title
+    st.session_state["student_profile"] = profile
+    return True
+
+
 def log_student_activity(
     activity_type: str,
     section_name: str,
@@ -258,6 +280,7 @@ def log_student_activity(
     genre_or_skill: str = "",
     xp_earned: int = 15,
     details: dict | None = None,
+    update_profile_xp: bool = True,
 ) -> bool:
     """
     Call this whenever a student completes:
@@ -265,6 +288,9 @@ def log_student_activity(
     - a quiz or grammar/language drill ('quiz', e.g. score_or_grade='4/5')
     - a guided lesson ('lesson', e.g. score_or_grade='Completed')
     - independent reading practice ('reading_practice', e.g. score_or_grade='Completed')
+
+    xp_earned is always written to the activity log. It is also added to the student's XP total
+    unless update_profile_xp is False (the app passes False because award_xp has already saved it).
     """
     profile = st.session_state.get("student_profile")
     if not profile:
@@ -288,10 +314,11 @@ def log_student_activity(
     if not res.data:
         return False
 
-    current_xp = int(profile.get("xp_points") or 0)
-    supabase.table("student_profiles").update({"xp_points": current_xp + int(xp_earned)}).eq(
-        "student_id", student_id
-    ).execute()
+    if update_profile_xp:
+        current_xp = int(profile.get("xp_points") or 0)
+        supabase.table("student_profiles").update({"xp_points": current_xp + int(xp_earned)}).eq(
+            "student_id", student_id
+        ).execute()
 
     _recalculate_title_and_badges(student_id)
     return True
