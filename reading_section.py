@@ -56,8 +56,8 @@ READING_UNIVERSE_CSS = """
 """
 
 STAGE_MAP = {
-    "Lower Primary (Stage 3)": "lower",
-    "Upper Primary (Stage 5)": "upper",
+    "Lower Primary": "lower",
+    "Upper Primary": "upper",
 }
 PAPERS = {
     "Paper 1: Non-fiction": ["non-fiction"],
@@ -249,8 +249,7 @@ def _render_skill_practice(band: str, stage_label: str) -> None:
     skill = SKILL_BY_ID[skill_id]
     best = st.session_state.get("reading_best", {}).get((skill_id, band))
 
-    chips = _chip("From my Year 4 guide" if skill["src"] == "guide" else "Added from the Cambridge framework")
-    chips += _chip(f"Objectives: {skill['objs'][band]}")
+    chips = _chip(f"Framework: {skill['objs'][band]}")
     if best is not None:
         chips += _chip(f"Best score: {best}%")
     st.markdown(
@@ -379,7 +378,7 @@ def _build_mock_pdf(spec: dict, title: str, include_key: bool) -> bytes:
         pdf.set_font("Helvetica", style, size)
         pdf.multi_cell(0, h, _safe_pdf_text(text), new_x="LMARGIN", new_y="NEXT")
 
-    stage_label = "Lower Primary (Stage 3)" if spec["band"] == "lower" else "Upper Primary (Stage 5)"
+    stage_label = "Lower Primary" if spec["band"] == "lower" else "Upper Primary"
     line(title, 16, "B", 9)
     line(f"{stage_label}  |  {spec['paper']}", 11)
     line(f"Time allowed: {spec['minutes']} minutes    Total marks: {spec['total']}", 11)
@@ -524,9 +523,9 @@ def render_reading_section(taxonomy_path: str = "reading_taxonomy.json", bubble=
     if st.session_state.get("reading_age_band") != age:
         st.session_state["reading_age_band"] = age
         st.session_state["reading_section_stage"] = (
-            "Lower Primary (Stage 3)" if age.startswith("lower") else "Upper Primary (Stage 5)"
+            "Lower Primary" if age.startswith("lower") else "Upper Primary"
         )
-    st.session_state.setdefault("reading_section_stage", "Upper Primary (Stage 5)")
+    st.session_state.setdefault("reading_section_stage", "Upper Primary")
 
     stage_label = st.radio("Stage", list(STAGE_MAP.keys()), horizontal=True, key="reading_section_stage")
     band = STAGE_MAP[stage_label]
