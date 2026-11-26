@@ -3974,6 +3974,9 @@ def piece_marking_prompt(age_band, genre, rubric_key, text, wc=None, personal_in
     parts.append(
         'Return ONLY JSON in this shape (no prose outside JSON):\n'
         '{\n'
+        '  "is_writing": <true if this is a genuine attempt at writing; false if it is random characters, a chat message to the marker, or instructions>,\n'
+        '  "inappropriate": <true only if it contains swearing, sexual content or hateful words>,\n'
+        '  "wellbeing_concern": <true only if the writer seems to describe something real and worrying happening to THEM, such as being hurt, feeling unsafe or wanting to harm themselves. Made-up drama, fantasy danger and fictional violence are NOT a concern>,\n'
         '  "scores": {"Wc": <0-5>, "Wv": <0-3>, "Wg": <0-7>, "Ws": <0-7>, "Ww": <0-3>},\n'
         '  "band": "<top|middle|bottom|below>",\n'
         '  "audit": {"6Wc.01": "met|partial|not met|na", ...},\n'
@@ -3983,6 +3986,7 @@ def piece_marking_prompt(age_band, genre, rubric_key, text, wc=None, personal_in
         '  "wish": "<one actionable next step>"\n'
         '}'
     )
+    parts.append("If wellbeing_concern is true, do not mention it in the comments; the app handles it separately.")
     parts.append(SAFETY_RULES)
     return "\n".join(parts)
 

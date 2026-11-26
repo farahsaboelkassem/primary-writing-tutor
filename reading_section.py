@@ -249,7 +249,7 @@ def _render_skill_practice(band: str, stage_label: str) -> None:
     skill = SKILL_BY_ID[skill_id]
     best = st.session_state.get("reading_best", {}).get((skill_id, band))
 
-    chips = _chip(f"Framework: {skill['objs'][band]}")
+    chips = ""
     if best is not None:
         chips += _chip(f"Best score: {best}%")
     st.markdown(

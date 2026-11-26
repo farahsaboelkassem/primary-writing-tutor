@@ -271,6 +271,56 @@ def add_button(award_xp, item_type, text, meaning, genre, example="", key=""):
             st.rerun()
 
 
+
+SUGGEST_CSS = """
+<style>
+[class*="st-key-vvhead_"] { padding:.15rem .8rem; margin-bottom:.2rem; background:rgba(255,255,255,.14); border-radius:12px; }
+[class*="st-key-vvrow_"] { background:#fffdf7; border:2px solid #f1dfae; border-left:8px solid #f6c453; border-radius:14px;
+  padding:.35rem .8rem; margin-bottom:.35rem; box-shadow:0 3px 10px rgba(0,0,0,.08); }
+.vv-th { font-family:'Fredoka',sans-serif; font-weight:700; font-size:.82rem; letter-spacing:.06em; text-transform:uppercase; color:#fff; }
+.vv-td { color:#2b2a4a; font-size:.98rem; line-height:1.35; padding:.2rem 0; }
+.vv-td.term { font-family:'Fredoka',sans-serif; font-size:1.12rem; font-weight:700; color:#0a5d6b; }
+.vv-td.eg { font-style:italic; color:#5b5a73; }
+.vv-kind { display:inline-block; font-size:.68rem; font-weight:700; padding:.05rem .5rem; margin-left:.4rem; border-radius:999px;
+  background:#e2f7f3; color:#086256; vertical-align:middle; }
+.vv-kind.word { background:#fff0c2; color:#8a5a00; }
+</style>
+"""
+
+
+def render_suggestion_table(rows, key_prefix, award_xp=None, title=None):
+    """Words and phrases in a clear table: Word or phrase | What it means | Example | Add button.
+
+    rows: list of dicts with type ('word' or 'phrase'), text, meaning, example, genre.
+    """
+    rows = [r for r in rows if str(r.get("text", "")).strip()]
+    if not rows:
+        return
+    st.markdown(SUGGEST_CSS, unsafe_allow_html=True)
+    if title:
+        st.markdown(title)
+    widths = [1.7, 2.7, 2.4, 1.4]
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", str(key_prefix))
+    with st.container(key=f"vvhead_{safe}"):
+        cols = st.columns(widths)
+        for col, label in zip(cols, ("Word or phrase", "What it means", "Example", "")):
+            col.markdown(f'<div class="vv-th">{label}</div>', unsafe_allow_html=True)
+    for i, r in enumerate(rows):
+        kind = "phrase" if r.get("type") == "phrase" else "word"
+        with st.container(key=f"vvrow_{safe}_{i}"):
+            c1, c2, c3, c4 = st.columns(widths, vertical_alignment="center")
+            c1.markdown(
+                f'<div class="vv-td term">{html.escape(str(r["text"]))}<span class="vv-kind {kind}">{kind}</span></div>',
+                unsafe_allow_html=True)
+            c2.markdown(f'<div class="vv-td">{html.escape(str(r.get("meaning") or ""))}</div>', unsafe_allow_html=True)
+            example = str(r.get("example") or "").strip()
+            c3.markdown(
+                f'<div class="vv-td eg">{html.escape(example) if example else "&mdash;"}</div>', unsafe_allow_html=True)
+            with c4:
+                add_button(award_xp, kind, r["text"], r.get("meaning", ""), r.get("genre", "General"),
+                           example, key=f"vv_{safe}_{i}_{kind}")
+
+
 # ------------------------------------------------------------------
 # Cards and list screens
 # ------------------------------------------------------------------
@@ -686,25 +736,19 @@ def render_vocabulary_vault(c):
 
 
 def render_guide_extras(guide, genre, title, key_prefix, award_xp=None):
-    """Writing Dojo: show a block guide's phrases and vocabulary, each with an add-to-my-list button."""
-    phrases = [str(p).strip() for p in (guide.get("point_scoring_phrases") or [])[:4] if str(p).strip()]
-    if phrases:
-        st.markdown("**✨ Point-Scoring Phrases:**")
-        for i, phrase in enumerate(phrases):
-            left, right = st.columns([4, 1.4])
-            left.markdown(f"- `{phrase}`")
-            with right:
-                add_button(award_xp, "phrase", phrase, f"A useful phrase for {genre} writing", genre,
-                           key=f"vv_gp_{key_prefix}_{i}")
-    vocab = [v for v in (guide.get("suggested_vocabulary") or [])[:4] if str(v.get("word", "")).strip()]
-    if vocab:
-        st.markdown("**💎 Suggested Vocabulary:**")
-        for i, v in enumerate(vocab):
-            left, right = st.columns([4, 1.4])
-            left.markdown(f"- **{v.get('word', '')}** — {v.get('meaning', '')}")
-            with right:
-                add_button(award_xp, "word", v.get("word", ""), v.get("meaning", ""), genre,
-                           f"Used in {title}", key=f"vv_gv_{key_prefix}_{i}")
+    """Writing Dojo: a step's key phrases and vocabulary in one table, each with an add button."""
+    rows = []
+    for item in (guide.get("suggested_vocabulary") or [])[:4]:
+        word = str(item.get("word", "")).strip()
+        if word:
+            rows.append({"type": "word", "text": word, "meaning": str(item.get("meaning", "")).strip(),
+                         "example": f"Used in {title}", "genre": genre})
+    for p in (guide.get("point_scoring_phrases") or [])[:4]:
+        phrase = str(p).strip()
+        if phrase:
+            rows.append({"type": "phrase", "text": phrase, "meaning": f"A useful phrase for {genre} writing",
+                         "example": "", "genre": genre})
+    render_suggestion_table(rows, f"guide_{key_prefix}", award_xp, "**✨ Words and phrases to help you here**")
 
 
 def render_arena_suggestions(genre, age_band, key_prefix="arena", award_xp=None):
@@ -729,9 +773,6 @@ def render_arena_suggestions(genre, age_band, key_prefix="arena", award_xp=None)
         return
     st.markdown("### 🔑 Words and phrases to try next time")
     st.caption("Tap ➕ to keep one in your list. You can practise them in the Vocabulary Vault.")
-    for item in picks:
-        left, right = st.columns([4.2, 1.4])
-        left.markdown(_card_html(item), unsafe_allow_html=True)
-        with right:
-            add_button(award_xp, item["type"], item["text"], item["meaning"], item["genre"], item["example"],
-                       key=f"vv_{key_prefix}_{item['code']}")
+    rows = [{"type": i["type"], "text": i["text"], "meaning": i["meaning"], "example": i.get("example", ""),
+             "genre": i["genre"]} for i in picks]
+    render_suggestion_table(rows, key_prefix, award_xp)

@@ -4,6 +4,7 @@ import base64
 from datetime import datetime
 from io import BytesIO
 import json
+import math
 import os
 import random
 import re
@@ -11,7 +12,6 @@ import time
 
 from openai import OpenAI
 from PIL import Image
-import requests
 import streamlit as st
 
 try:
@@ -78,6 +78,9 @@ st.set_page_config(
 )
 
 from reading_section import render_reading_section, READING_UNIVERSE_CSS
+from safeguarding import (
+    blocked_for, check_model_flags, clear_block, is_overridden, render_block, set_block, take_force,
+)
 from auth_progress import (
     render_auth_page,
     render_profile_progress_tab,
@@ -636,17 +639,40 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 APP_TITLE = "The Writing Adventure"
 APP_REFERER = "https://the-writing-adventure.streamlit.app"
 
-TEXT_MODEL_CHAIN = [
-    "google/gemini-2.5-flash",
+# Free models are tried first. The paid model is only a BACKUP, used when every free
+# model is busy, rate-limited or down. Change the backup in Streamlit Secrets with
+# PAID_BACKUP_MODEL, or switch it off completely with ALLOW_PAID_BACKUP = "false".
+FREE_ROUTER = "openrouter/free"
+DEFAULT_PAID_BACKUP = "google/gemini-2.5-flash-lite"
+
+FREE_TEXT_MODELS = [
+    FREE_ROUTER,
     "meta-llama/llama-3.3-70b-instruct:free",
     "mistralai/mistral-small-3.1-24b-instruct:free",
     "google/gemma-3-27b-it:free",
 ]
-VISION_MODEL_CHAIN = [
-    "google/gemini-2.5-flash",
+FREE_VISION_MODELS = [
+    FREE_ROUTER,
     "mistralai/mistral-small-3.1-24b-instruct:free",
     "google/gemma-3-27b-it:free",
 ]
+FREE_TIMEOUT = 20.0    # give up on a busy free model quickly and try the next one
+PAID_TIMEOUT = 45.0
+
+
+def is_free_model(model):
+    return model == FREE_ROUTER or str(model).endswith(":free")
+
+
+def build_chain(free_models):
+    """Free models first; the paid backup goes last (unless switched off)."""
+    chain = list(free_models)
+    allowed = get_secret("ALLOW_PAID_BACKUP", "true").lower() not in ("false", "0", "no", "off")
+    backup = get_secret("PAID_BACKUP_MODEL", DEFAULT_PAID_BACKUP)
+    if allowed and backup and backup not in chain:
+        chain.append(backup)
+    return chain
+
 
 MAX_TOKENS = {
     "whole_prompt": 400,
@@ -712,44 +738,48 @@ def get_openrouter_client(api_key):
 
 
 def call_openrouter(messages, models=None, max_tokens=700, temperature=0.7):
+    """Try each model in order. Free models come first; the paid backup is last.
+
+    A free model gets one quick try (a busy one is skipped fast). The paid backup gets two.
+    """
     api_key = get_secret("OPENROUTER_API_KEY")
     if not api_key:
-        raise RuntimeError(
-            "OPENROUTER_API_KEY is missing. Add it to Streamlit Secrets."
-        )
+        print("[inky] OPENROUTER_API_KEY is missing")
+        raise RuntimeError("Inky can't reach its helper right now. Please tell your teacher or parent.")
     client = get_openrouter_client(api_key)
-    models = models or TEXT_MODEL_CHAIN
+    models = models or build_chain(FREE_TEXT_MODELS)
     errors = []
     for model in models:
-        for attempt in range(2):
+        free = is_free_model(model)
+        for attempt in range(1 if free else 2):
             try:
                 resp = client.chat.completions.create(
                     model=model,
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    timeout=FREE_TIMEOUT if free else PAID_TIMEOUT,
                 )
                 text = (resp.choices[0].message.content or "").strip()
                 if not text:
                     raise RuntimeError("Empty response from model.")
                 st.session_state["last_model_used"] = model
+                if not free:
+                    print(f"[inky] used the paid backup model ({model}); free models were unavailable")
                 return text
             except Exception as exc:
                 msg = str(exc)
                 errors.append(f"{model}: {msg[:110]}")
                 low = msg.lower()
                 if "401" in low or "invalid api key" in low:
-                    raise RuntimeError(
-                        "Invalid OPENROUTER_API_KEY. Please check your Streamlit Secrets."
-                    )
-                if "429" in low or "rate limit" in low or "503" in low or "timeout" in low:
+                    print("[inky] OpenRouter rejected the API key")
+                    raise RuntimeError("Inky can't reach its helper right now. Please tell your teacher or parent.")
+                if not free and ("429" in low or "rate limit" in low or "503" in low or "timeout" in low):
                     time.sleep(0.8 * (attempt + 1))
                     continue
                 break
-    raise RuntimeError(
-        "All helpers are busy right now. Please try again in a moment. "
-        f"({errors[-1] if errors else ''})"
-    )
+    print("[inky] every model failed: " + " || ".join(errors))
+    raise RuntimeError("Inky is very busy right now. Please try again in a moment.")
 
 
 def parse_json_block(raw_text):
@@ -767,130 +797,11 @@ def call_json(prompt_text, task_key, models=None, temperature=0.55):
             {"role": "system", "content": "Return ONLY valid JSON matching the requested schema. No markdown fences."},
             {"role": "user", "content": prompt_text},
         ],
-        models=models or TEXT_MODEL_CHAIN,
+        models=models or build_chain(FREE_TEXT_MODELS),
         max_tokens=MAX_TOKENS[task_key],
         temperature=temperature,
     )
     return parse_json_block(raw)
-
-
-# ------------------------------------------------------------------
-# Supabase REST Client (safe if unconfigured or offline)
-# ------------------------------------------------------------------
-def sb_config():
-    url = get_secret("SUPABASE_URL").rstrip("/")
-    key = get_secret("SUPABASE_ANON_KEY") or get_secret("SUPABASE_KEY")
-    return url, key
-
-def sb_headers(key, prefer=None):
-    headers = {
-        "apikey": key,
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-    }
-    if prefer:
-        headers["Prefer"] = prefer
-    return headers
-
-
-def sb_save_progress(student_name, genre, subgenre, score, feedback,
-                     age_band="Upper Primary (Grades 4-6)", wc_score=0,
-                     wv_score=0, wg_score=0, ws_score=0, ww_score=0,
-                     word_cnt=0, band=""):
-    url, key = sb_config()
-    if not url or not key or not student_name.strip():
-        return False
-    payload = {
-        "student_name": student_name.strip(),
-        "age_band": age_band,
-        "genre": genre,
-        "subgenre": subgenre,
-        "score": int(score),
-        "wc_score": int(wc_score),
-        "wv_score": int(wv_score),
-        "wg_score": int(wg_score),
-        "ws_score": int(ws_score),
-        "ww_score": int(ww_score),
-        "word_count": int(word_cnt),
-        "band": str(band or ""),
-        "feedback": feedback[:4000],
-    }
-    try:
-        r = requests.post(
-            f"{url}/rest/v1/student_progress",
-            headers=sb_headers(key, "return=minimal"),
-            json=payload,
-            timeout=8,
-        )
-        return r.status_code in (200, 201, 204)
-    except Exception:
-        return False
-
-
-def sb_fetch_progress(student_name):
-    url, key = sb_config()
-    if not url or not key or not student_name.strip():
-        return []
-    try:
-        r = requests.get(
-            f"{url}/rest/v1/student_progress",
-            headers=sb_headers(key),
-            params={
-                "student_name": f"eq.{student_name.strip()}",
-                "order": "created_at.desc",
-                "limit": "30",
-            },
-            timeout=8,
-        )
-        if r.status_code == 200:
-            return r.json()
-    except Exception:
-        pass
-    return []
-
-
-def sb_save_vocab(student_name, word, meaning, example=""):
-    url, key = sb_config()
-    if not url or not key or not student_name.strip() or not word.strip():
-        return False
-    payload = {
-        "student_name": student_name.strip(),
-        "word": word.strip(),
-        "meaning": meaning.strip(),
-        "example": example.strip(),
-    }
-    try:
-        r = requests.post(
-            f"{url}/rest/v1/vocabulary",
-            headers=sb_headers(key, "return=minimal"),
-            json=payload,
-            timeout=8,
-        )
-        return r.status_code in (200, 201, 204)
-    except Exception:
-        return False
-
-
-def sb_fetch_vocab(student_name):
-    url, key = sb_config()
-    if not url or not key or not student_name.strip():
-        return []
-    try:
-        r = requests.get(
-            f"{url}/rest/v1/vocabulary",
-            headers=sb_headers(key),
-            params={
-                "student_name": f"eq.{student_name.strip()}",
-                "order": "created_at.desc",
-                "limit": "100",
-            },
-            timeout=8,
-        )
-        if r.status_code == 200:
-            return r.json()
-    except Exception:
-        pass
-    return []
 
 
 # ------------------------------------------------------------------
@@ -911,7 +822,7 @@ def transcribe_handwriting(uploaded_files):
     images_b64 = [compress_image_to_base64(f) for f in uploaded_files]
     return call_openrouter(
         transcription_messages(images_b64),
-        models=VISION_MODEL_CHAIN,
+        models=build_chain(FREE_VISION_MODELS),
         max_tokens=MAX_TOKENS["transcribe"],
         temperature=0.1,
     )
@@ -1002,7 +913,6 @@ def init_state():
         "quiz_score": None,
         "quiz_word_history": [],
         "arena_text": "",
-        "db_synced_for": "",
         "grammar_done": [],
         "grammar_lessons_done": [],
         "language_done": [],
@@ -1071,6 +981,166 @@ def personal_instruction():
     if name:
         return f"Address the student warmly by their first name ({name})."
     return "Address the student warmly as 'young writer'."
+
+
+# ------------------------------------------------------------------
+# Marking helpers: safe scores, care notes, and the gentle results screen
+# ------------------------------------------------------------------
+def _score_int(value):
+    """Turn whatever the marker returned (3, 3.6, "3", "3/5", None) into a whole number, or 0."""
+    try:
+        if isinstance(value, str):
+            value = value.split("/")[0]
+        return int(round(float(value)))
+    except Exception:
+        return 0
+
+
+def _log_care(check, section):
+    """Remember that a care message was shown. Only the category is saved, never the writing."""
+    if check is not None and check.status == "care":
+        safe_log_activity(
+            "wellbeing_flag", section, "Care message shown", xp_earned=0,
+            details={"category": check.category},
+        )
+
+
+def _ratio(score, mx):
+    return 0.0 if not mx else max(0.0, min(1.0, score / mx))
+
+
+def _stars_for(ratio):
+    """1 to 5 stars. A child who has tried always gets at least one."""
+    return max(1, min(5, math.ceil(ratio * 5)))
+
+
+def _level_label(ratio):
+    if ratio < 0.35:
+        return "Just starting 🌱"
+    if ratio < 0.6:
+        return "Growing 🌿"
+    if ratio < 0.8:
+        return "Getting strong 🌳"
+    return "Shining ✨"
+
+
+def _stars_html(n, size="1.5rem"):
+    return (
+        f'<span style="color:#F5A623;font-size:{size};letter-spacing:.08em;">{"★" * n}</span>'
+        f'<span style="color:#d6d0bd;font-size:{size};letter-spacing:.08em;">{"★" * (5 - n)}</span>'
+    )
+
+
+def _bar_html(ratio, color):
+    pct = max(8, int(round(ratio * 100)))
+    return (
+        '<div style="background:#e6e0f4;border-radius:999px;height:16px;overflow:hidden;">'
+        f'<div style="width:{pct}%;height:100%;background:{color};border-radius:999px;"></div></div>'
+    )
+
+
+def render_marking_feedback(res, rubric_key, age_band):
+    """Feedback first, then growth stars or bars. No marks are shown here."""
+    max_map = RUBRICS[rubric_key]["max"]
+    lower = str(age_band).startswith("Lower")
+    cats = ("Wc", "Wv", "Wg", "Ws", "Ww")
+    st.markdown("---")
+    st.markdown("### 💬 Inky's feedback")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.success(f"**🌟 Two Stars (Strengths)**\n\n{res.get('strengths', '')}")
+    with c2:
+        st.info(f"**💡 Next Steps**\n\n{res.get('improvements', '')}")
+    with c3:
+        st.warning(f"**✨ Inky's Wish**\n\n{res.get('wish', '')}")
+    if res.get("cap_note"):
+        st.info("🌱 Next time, try writing a little more (61 words or more) so Inky can see all of your skills.")
+
+    st.markdown("### 🌱 How your writing skills are growing")
+    total_max = sum(max_map[c] for c in cats)
+    overall = _ratio(res["total"], total_max)
+    if lower:
+        st.markdown(
+            f'<div class="adventure-card" style="text-align:center;">'
+            f'<div style="font-weight:700;">Your whole piece</div>{_stars_html(_stars_for(overall), "2.2rem")}'
+            f'<div style="font-weight:700;">{_level_label(overall)}</div></div>',
+            unsafe_allow_html=True,
+        )
+        cols = st.columns(5)
+        for col, cat in zip(cols, cats):
+            r = _ratio(res["scores"][cat], max_map[cat])
+            with col:
+                st.markdown(
+                    f'<div class="adventure-card" style="text-align:center;padding:0.8rem 0.5rem;">'
+                    f'<div style="font-size:1.5rem;">{CATEGORY_ICONS[cat]}</div>'
+                    f'<div style="font-weight:700;font-size:0.85rem;">{CATEGORY_LABELS[cat]}</div>'
+                    f'{_stars_html(_stars_for(r), "1.2rem")}'
+                    f'<div style="font-size:0.8rem;font-weight:700;">{_level_label(r)}</div></div>',
+                    unsafe_allow_html=True,
+                )
+    else:
+        rows = [("Your whole piece", "⭐", overall, "#6b63d9")] + [
+            (CATEGORY_LABELS[c], CATEGORY_ICONS[c], _ratio(res["scores"][c], max_map[c]), CATEGORY_COLORS[c])
+            for c in cats
+        ]
+        for label, icon, r, color in rows:
+            a, b, c = st.columns([2.3, 4.5, 2])
+            a.markdown(f"**{icon} {label}**")
+            b.markdown(_bar_html(r, color), unsafe_allow_html=True)
+            c.markdown(f"**{_level_label(r)}**")
+
+    with st.expander("🔎 Notes on each skill & Stage 6 stretch checklist"):
+        comments = res.get("comments", {})
+        for cat in cats:
+            st.markdown(f"**{CATEGORY_ICONS[cat]} {CATEGORY_LABELS[cat]} ({cat}):** {comments.get(cat, '')}")
+        audit = res.get("audit", {})
+        if audit:
+            st.markdown("#### Stage 6 Stretch Checklist")
+            status_icon = {"met": "✅", "partial": "🟡", "not met": "⬜", "na": "➖"}
+            for cat, codes in STAGE6_CODES.items():
+                lines = []
+                for code, meta in codes.items():
+                    st_val = str(audit.get(code, "na")).lower()
+                    lines.append(f"{status_icon.get(st_val, '➖')} `{code}` {meta['text']}")
+                st.markdown(f"**{CATEGORY_LABELS[cat]}**")
+                st.markdown("<br>".join(lines), unsafe_allow_html=True)
+
+
+def render_score_reveal(res, rubric_key):
+    """The marks, tucked away at the very bottom until the child chooses to look."""
+    max_map = RUBRICS[rubric_key]["max"]
+    cats = ("Wc", "Wv", "Wg", "Ws", "Ww")
+    st.markdown("---")
+    with st.expander("🔓 Show my score"):
+        st.caption("This is a snapshot of this one piece. Every piece you write helps you grow.")
+        band = str(res.get("band", "")).upper()
+        st.markdown(
+            f"""
+            <div class="adventure-card" style="text-align:center;background:linear-gradient(135deg,#FFFDF7,#FFF3D6);">
+                <div style="font-size:1.1rem;font-weight:700;color:#B25200;">YOUR SCORE</div>
+                <div style="font-size:3rem;font-weight:700;color:#FF6F00;font-family:'Fredoka',sans-serif;">
+                    {res['total']} / {sum(max_map[c] for c in cats)}
+                </div>
+                <div>Band: <b>{band}</b> &nbsp;•&nbsp; Words: <b>{res['word_count']}</b></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if res.get("cap_note"):
+            st.warning(res["cap_note"])
+        cols = st.columns(5)
+        for col, cat in zip(cols, cats):
+            with col:
+                st.markdown(
+                    f"""
+                    <div class="adventure-card" style="text-align:center;padding:0.8rem 0.5rem;">
+                        <div style="font-size:1.5rem;">{CATEGORY_ICONS[cat]}</div>
+                        <div style="font-weight:700;font-size:0.85rem;">{CATEGORY_LABELS[cat]}</div>
+                        <div style="font-size:1.45rem;font-weight:700;color:{CATEGORY_COLORS[cat]};">{res['scores'][cat]}/{max_map[cat]}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
 
 # ------------------------------------------------------------------
@@ -1217,7 +1287,6 @@ with st.sidebar:
     )
     if student_name != st.session_state["student_name"]:
         st.session_state["student_name"] = student_name
-        st.session_state["db_synced_for"] = ""
 
     age_band = st.selectbox(
         "Your School Stage",
@@ -1225,18 +1294,6 @@ with st.sidebar:
         index=AGE_BANDS.index(st.session_state["age_band"]),
     )
     st.session_state["age_band"] = age_band
-
-    if student_name.strip() and st.session_state["db_synced_for"] != student_name.strip():
-        rows = sb_fetch_progress(student_name)
-        vocab_rows = sb_fetch_vocab(student_name)
-        if rows:
-            st.session_state["local_history"] = rows
-        if vocab_rows:
-            existing = {v["word"].lower() for v in st.session_state["local_vocab"]}
-            for vr in vocab_rows:
-                if vr.get("word", "").lower() not in existing:
-                    st.session_state["local_vocab"].append(vr)
-        st.session_state["db_synced_for"] = student_name.strip()
 
     xp_panel = st.empty()  # filled in at the very end of the page, so it always shows the latest XP
 
@@ -1436,42 +1493,7 @@ if nav == "🥋 The Writing Dojo":
 
                 guide = st.session_state.get(guide_key)
                 if guide:
-                    phrases = guide.get("point_scoring_phrases", [])[:4]
-                    if phrases:
-                        st.markdown("**✨ Point-Scoring Key Phrases:**")
-                        for p_idx, p_txt in enumerate(phrases):
-                            pc1, pc2 = st.columns([4, 1])
-                            pc1.markdown(f"- `{p_txt}`")
-                            if p_txt and pc2.button("+ Bank", key=f"save_p_{step_slug}_{p_idx}"):
-                                phrase_meaning = f"Key phrase for {clean_subgenre} ({step_label})"
-                                st.session_state["local_vocab"].append({
-                                    "word": p_txt,
-                                    "meaning": phrase_meaning,
-                                    "example": f"Used in {title}",
-                                })
-                                sb_save_vocab(st.session_state["student_name"], p_txt, phrase_meaning, f"Used in {title}")
-                                safe_save_vocab(p_txt, clean_subgenre, phrase_meaning, "Learning")
-                                award_xp(5)
-                                st.toast(f"Saved key phrase to your Vocabulary Bank!")
-
-                    vocab_list = guide.get("suggested_vocabulary", [])[:4]
-                    if vocab_list:
-                        st.markdown("**💎 Suggested Vocabulary:**")
-                        for v_idx, v_item in enumerate(vocab_list):
-                            w_txt = v_item.get("word", "")
-                            m_txt = v_item.get("meaning", "")
-                            vc1, vc2 = st.columns([4, 1])
-                            vc1.markdown(f"- **{w_txt}** — {m_txt}")
-                            if w_txt and vc2.button("+ Bank", key=f"save_v_{step_slug}_{v_idx}_{w_txt}"):
-                                st.session_state["local_vocab"].append({
-                                    "word": w_txt,
-                                    "meaning": m_txt,
-                                    "example": f"Used in {title}",
-                                })
-                                sb_save_vocab(st.session_state["student_name"], w_txt, m_txt, f"Used in {title}")
-                                safe_save_vocab(w_txt, clean_subgenre, m_txt, "Learning")
-                                award_xp(5)
-                                st.toast(f"Saved '{w_txt}' to your Word Bank!")
+                    render_guide_extras(guide, clean_subgenre, title, step_slug, award_xp)
 
                 part_text = st.text_area(
                     f"Write your {step_label}:",
@@ -1485,25 +1507,34 @@ if nav == "🥋 The Writing Dojo":
                 )
                 draft_parts.append((step_label, part_text))
 
-               # 4. Block-by-block AI check (unchanged, grade-band matched)
-                if st.button(f"🦉 Check {step_label}", key=f"btn_fb_{step_slug}"):
+                # 4. Block-by-block feedback (screened for safety first)
+                dojo_key = f"dojo_{step_slug}"
+                force_check = take_force(dojo_key)
+                if st.button(f"🦉 Check {step_label}", key=f"btn_fb_{step_slug}") or force_check:
                     if word_count(part_text) < 4:
                         st.warning("Write at least one sentence first so Inky can help!")
                     else:
-                        with st.spinner("Inky is reading your section..."):
-                            try:
-                                fb = call_openrouter(
-                                    [{"role": "user", "content": block_feedback_prompt(
-                                        age_band, subgenre, step_label, part_text, personal_instruction()
-                                    )}],
-                                    max_tokens=MAX_TOKENS["feedback"],
-                                    temperature=0.6,
-                                )
-                                st.session_state[fb_key] = fb
-                                award_xp(10, "🧱 Block Builder")
-                            except Exception as exc:
-                                st.error(str(exc))
+                        blocked = blocked_for(dojo_key, part_text)
+                        if blocked:
+                            st.session_state.pop(fb_key, None)
+                            _log_care(blocked, "Writing Dojo")
+                        else:
+                            with st.spinner("Inky is reading your section..."):
+                                try:
+                                    fb = call_openrouter(
+                                        [{"role": "user", "content": block_feedback_prompt(
+                                            age_band, subgenre, step_label, part_text, personal_instruction()
+                                        )}],
+                                        max_tokens=MAX_TOKENS["feedback"],
+                                        temperature=0.6,
+                                    )
+                                    st.session_state[fb_key] = fb
+                                    award_xp(10, "🧱 Block Builder")
+                                except Exception as exc:
+                                    print(f"[inky] block feedback failed: {exc}")
+                                    st.error("Inky couldn't read that just now. Please try again in a moment.")
 
+                render_block(dojo_key)
                 if st.session_state.get(fb_key):
                     st.info(st.session_state[fb_key])
 
@@ -1514,8 +1545,8 @@ if nav == "🥋 The Writing Dojo":
 # ==================================================================
 elif nav == "🏟️ Marking Arena":
     render_inky_bubble(
-        "Type, paste, or snap photos of your handwritten work! I'll score it out of 25 "
-        "and show you every star you earned."
+        "Type, paste, or snap photos of your handwritten work! I'll tell you what is great, "
+        "what to try next, and show you how your writing skills are growing."
     )
 
     col_m1, col_m2 = st.columns([1.2, 1.8])
@@ -1548,173 +1579,136 @@ elif nav == "🏟️ Marking Arena":
                     award_xp(10)
                     st.success("Handwriting transcribed below! Check it and click Mark My Writing.")
                 except Exception as exc:
-                    st.error(str(exc))
+                    print(f"[inky] transcription failed: {exc}")
+                    st.error("Inky couldn't read those photos. Try a clearer, well-lit photo.")
 
     writing_text = st.text_area(
         "Your Writing",
         value=st.session_state.get("arena_text", ""),
         height=240,
-        placeholder="Paste or type your story, report, letter, or essay here (aim for 61+ words for the full 25-mark range)...",
+        placeholder="Paste or type your story, report, letter, or essay here (aim for 61+ words so Inky can see all your skills)...",
     )
     st.session_state["arena_text"] = writing_text
 
     wc = word_count(writing_text)
-    if wc <= 20:
-        wc_hint = "⚠️ 20 words or fewer scores 0 marks under Cambridge rules."
-    elif wc <= 60:
-        wc_hint = "⚠️ 21–60 words is capped at 7/25 marks. Write 61+ words to unlock all 25 marks!"
+    if wc <= 60:
+        wc_hint = "✍️ Keep going! Pieces with 61 or more words let Inky see all of your skills."
     else:
-        wc_hint = "✅ 61+ words — full 25-mark range unlocked!"
+        wc_hint = "✅ Lovely length. Inky can see lots of your skills!"
     st.caption(f"Word count: **{wc} words**  •  {wc_hint}")
 
-    if st.button("🏅 Mark My Writing!", type="primary", use_container_width=True):
+    force_mark = take_force("arena")
+    if st.button("🏅 Mark My Writing!", type="primary", use_container_width=True) or force_mark:
         if wc == 0:
             st.warning("Please enter or transcribe some writing first.")
         else:
-            with st.spinner("Inky is marking your work against the Cambridge rubric..."):
-                try:
-                    result = call_json(
-                        piece_marking_prompt(
-                            age_band,
-                            f"{arena_genre} ({arena_subgenre or rubric_key})",
-                            rubric_key,
-                            writing_text,
-                            wc=wc,
-                            personal_instruction=personal_instruction(),
-                        ),
-                        "mark",
-                        temperature=0.3,
-                    )
-                    raw_scores = result.get("scores", {})
-                    max_map = RUBRICS[rubric_key]["max"]
-                    clamped = {
-                        k: max(0, min(max_map[k], int(raw_scores.get(k, 0))))
-                        for k in ("Wc", "Wv", "Wg", "Ws", "Ww")
-                    }
-                    final_scores, cap_note = apply_word_count_rules(clamped, wc)
-                    total_score = sum(final_scores.values())
-                    result["scores"] = final_scores
-                    result["total"] = total_score
-                    result["word_count"] = wc
-                    result["cap_note"] = cap_note
-                    result["genre"] = arena_genre
-                    result["subgenre"] = arena_subgenre or rubric_key
-                    st.session_state["last_marking"] = result
+            blocked = blocked_for("arena", writing_text)
+            if blocked:
+                st.session_state.pop("last_marking", None)
+                _log_care(blocked, "Marking Arena")
+            else:
+                with st.spinner("Inky is reading your work carefully..."):
+                    try:
+                        result = call_json(
+                            piece_marking_prompt(
+                                age_band,
+                                f"{arena_genre} ({arena_subgenre or rubric_key})",
+                                rubric_key,
+                                writing_text,
+                                wc=wc,
+                                personal_instruction=personal_instruction(),
+                            ),
+                            "mark",
+                            temperature=0.3,
+                        )
+                        if not isinstance(result, dict):
+                            raise ValueError("The marker did not return a usable answer.")
+                        flag = check_model_flags(result)
+                        if flag and not (flag.status == "care" and is_overridden("arena", writing_text)):
+                            set_block("arena", flag, writing_text)
+                            st.session_state.pop("last_marking", None)
+                            _log_care(flag, "Marking Arena")
+                        else:
+                            clear_block("arena")
+                            max_map = RUBRICS[rubric_key]["max"]
+                            raw_scores = result.get("scores") if isinstance(result.get("scores"), dict) else {}
+                            clamped = {
+                                k: max(0, min(max_map[k], _score_int(raw_scores.get(k, 0))))
+                                for k in ("Wc", "Wv", "Wg", "Ws", "Ww")
+                            }
+                            final_scores, cap_note = apply_word_count_rules(clamped, wc)
+                            total_score = sum(final_scores.values())
+                            band_val = str(result.get("band", "")).strip().lower()
+                            if band_val not in ("top", "middle", "bottom", "below"):
+                                r = total_score / max(1, sum(max_map.values()))
+                                band_val = "top" if r >= 0.7 else "middle" if r >= 0.4 else "bottom" if r >= 0.2 else "below"
+                            result["band"] = band_val
+                            result["scores"] = final_scores
+                            result["total"] = total_score
+                            result["word_count"] = wc
+                            result["cap_note"] = cap_note
+                            result["genre"] = arena_genre
+                            result["subgenre"] = arena_subgenre or rubric_key
+                            st.session_state["last_marking"] = result
 
-                    summary_fb = (
-                        f"Strengths: {result.get('strengths', '')} | "
-                        f"Improvements: {result.get('improvements', '')} | "
-                        f"Wish: {result.get('wish', '')}"
-                    )
-                    entry = {
-                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "genre": arena_genre,
-                        "subgenre": arena_subgenre or rubric_key,
-                        "score": total_score,
-                        "wc_score": final_scores["Wc"],
-                        "wv_score": final_scores["Wv"],
-                        "wg_score": final_scores["Wg"],
-                        "ws_score": final_scores["Ws"],
-                        "ww_score": final_scores["Ww"],
-                        "word_count": wc,
-                        "band": result.get("band", ""),
-                        "feedback": summary_fb,
-                    }
-                    st.session_state["local_history"].insert(0, entry)
-                    sb_save_progress(
-                        st.session_state["student_name"],
-                        arena_genre,
-                        arena_subgenre or rubric_key,
-                        total_score,
-                        summary_fb,
-                        age_band=age_band,
-                        wc_score=final_scores["Wc"],
-                        wv_score=final_scores["Wv"],
-                        wg_score=final_scores["Wg"],
-                        ws_score=final_scores["Ws"],
-                        ww_score=final_scores["Ww"],
-                        word_cnt=wc,
-                        band=result.get("band", ""),
-                    )
-                    badge = "🏅 First Arena Score"
-                    if total_score >= 20:
-                        badge = "🌟 High Flyer (20+/25)"
-                    award_xp(15 + total_score, badge)
-                    safe_log_activity(
-                        "marked_item", "Marking Arena", str(arena_subgenre or rubric_key),
-                        score_or_grade=f"{total_score}/25", genre_or_skill=str(arena_genre),
-                        xp_earned=15 + total_score,
-                    )
-                except Exception as exc:
-                    st.error(str(exc))
+                            summary_fb = (
+                                f"Strengths: {result.get('strengths', '')} | "
+                                f"Improvements: {result.get('improvements', '')} | "
+                                f"Wish: {result.get('wish', '')}"
+                            )
+                            entry = {
+                                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                                "genre": arena_genre,
+                                "subgenre": arena_subgenre or rubric_key,
+                                "score": total_score,
+                                "wc_score": final_scores["Wc"],
+                                "wv_score": final_scores["Wv"],
+                                "wg_score": final_scores["Wg"],
+                                "ws_score": final_scores["Ws"],
+                                "ww_score": final_scores["Ww"],
+                                "word_count": wc,
+                                "band": result.get("band", ""),
+                                "feedback": summary_fb,
+                            }
+                            st.session_state["local_history"].insert(0, entry)
+                            badge = "🏅 First Arena Score"
+                            if total_score >= 20:
+                                badge = "🌟 High Flyer (20+/25)"
+                            award_xp(15 + total_score, badge)
+                            safe_log_activity(
+                                "marked_item", "Marking Arena", str(arena_subgenre or rubric_key),
+                                score_or_grade=f"{total_score}/25", genre_or_skill=str(arena_genre),
+                                xp_earned=15 + total_score,
+                                details={
+                                    "age_band": age_band,
+                                    "subgenre": str(arena_subgenre or rubric_key),
+                                    "score": int(total_score),
+                                    "wc_score": final_scores["Wc"],
+                                    "wv_score": final_scores["Wv"],
+                                    "wg_score": final_scores["Wg"],
+                                    "ws_score": final_scores["Ws"],
+                                    "ww_score": final_scores["Ww"],
+                                    "word_count": int(wc),
+                                    "band": str(result.get("band", "") or ""),
+                                    "feedback": summary_fb[:4000],
+                                },
+                            )
+                    except Exception as exc:
+                        print(f"[inky] marking failed: {exc}")
+                        st.error("Inky had trouble marking this one. Please try again in a moment.")
+
+    render_block("arena")
 
     res = st.session_state.get("last_marking")
     if res:
-        st.markdown("---")
-        total = res["total"]
-        band = str(res.get("band", "")).upper()
-        st.markdown(
-            f"""
-            <div class="adventure-card" style="text-align:center;background:linear-gradient(135deg,#FFFDF7,#FFF3D6);">
-                <div style="font-size:1.1rem;font-weight:700;color:#B25200;">YOUR SCORE</div>
-                <div style="font-size:3rem;font-weight:700;color:#FF6F00;font-family:'Fredoka',sans-serif;">
-                    {total} / 25
-                </div>
-                <div>Band: <b>{band}</b> &nbsp;•&nbsp; Words: <b>{res['word_count']}</b></div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        render_marking_feedback(res, rubric_key, age_band)
+        render_arena_suggestions(
+            genre=str(res.get("subgenre") or "").split("::")[0],
+            age_band=age_band,
+            key_prefix="arena",
+            award_xp=award_xp,
         )
-        if res.get("cap_note"):
-            st.warning(res["cap_note"])
-
-        cols = st.columns(5)
-        max_map = RUBRICS[rubric_key]["max"]
-        for col, cat in zip(cols, ("Wc", "Wv", "Wg", "Ws", "Ww")):
-            sc = res["scores"][cat]
-            mx = max_map[cat]
-            with col:
-                st.markdown(
-                    f"""
-                    <div class="adventure-card" style="text-align:center;padding:0.8rem 0.5rem;">
-                        <div style="font-size:1.5rem;">{CATEGORY_ICONS[cat]}</div>
-                        <div style="font-weight:700;font-size:0.85rem;">{CATEGORY_LABELS[cat]}</div>
-                        <div style="font-size:1.45rem;font-weight:700;color:{CATEGORY_COLORS[cat]};">{sc}/{mx}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-        c_fb1, c_fb2, c_fb3 = st.columns(3)
-        with c_fb1:
-            st.success(f"**🌟 Two Stars (Strengths)**\n\n{res.get('strengths', '')}")
-        with c_fb2:
-            st.info(f"**💡 Next Steps**\n\n{res.get('improvements', '')}")
-        with c_fb3:
-            st.warning(f"**✨ Inky's Wish**\n\n{res.get('wish', '')}")
-
-        with st.expander("🔎 Category Breakdown & Stage 6 Skills Audit"):
-            comments = res.get("comments", {})
-            for cat in ("Wc", "Wv", "Wg", "Ws", "Ww"):
-                st.markdown(f"**{CATEGORY_ICONS[cat]} {CATEGORY_LABELS[cat]} ({cat}):** {comments.get(cat, '')}")
-            audit = res.get("audit", {})
-            if audit:
-                st.markdown("#### Stage 6 Stretch Checklist")
-                status_icon = {"met": "✅", "partial": "🟡", "not met": "⬜", "na": "➖"}
-                for cat, codes in STAGE6_CODES.items():
-                    lines = []
-                    for code, meta in codes.items():
-                        st_val = str(audit.get(code, "na")).lower()
-                        lines.append(f"{status_icon.get(st_val, '➖')} `{code}` {meta['text']}")
-                    st.markdown(f"**{CATEGORY_LABELS[cat]}**")
-                    st.markdown("<br>".join(lines), unsafe_allow_html=True)
-
-    render_arena_suggestions(
-    genre=str(res.get("subgenre") or "").split("::")[0],
-    age_band=age_band,
-    key_prefix="arena",
-    award_xp=award_xp,
-)
+        render_score_reveal(res, rubric_key)
 # ==================================================================
 # VIEW: READING
 # ==================================================================
