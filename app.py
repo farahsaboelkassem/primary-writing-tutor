@@ -639,11 +639,9 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 APP_TITLE = "The Writing Adventure"
 APP_REFERER = "https://the-writing-adventure.streamlit.app"
 
-# Free models are tried first. The paid model is only a BACKUP, used when every free
-# model is busy, rate-limited or down. Change the backup in Streamlit Secrets with
-# PAID_BACKUP_MODEL, or switch it off completely with ALLOW_PAID_BACKUP = "false".
+# FREE MODELS ONLY. The app can never call a paid model: any model that is not on the
+# free list is refused by call_openrouter, even if it is passed in by mistake.
 FREE_ROUTER = "openrouter/free"
-DEFAULT_PAID_BACKUP = "google/gemini-2.5-flash-lite"
 
 FREE_TEXT_MODELS = [
     FREE_ROUTER,
@@ -656,22 +654,16 @@ FREE_VISION_MODELS = [
     "mistralai/mistral-small-3.1-24b-instruct:free",
     "google/gemma-3-27b-it:free",
 ]
-FREE_TIMEOUT = 20.0    # give up on a busy free model quickly and try the next one
-PAID_TIMEOUT = 45.0
+MODEL_TIMEOUT = 25.0   # give up on a busy free model quickly and try the next one
 
 
 def is_free_model(model):
     return model == FREE_ROUTER or str(model).endswith(":free")
 
 
-def build_chain(free_models):
-    """Free models first; the paid backup goes last (unless switched off)."""
-    chain = list(free_models)
-    allowed = get_secret("ALLOW_PAID_BACKUP", "true").lower() not in ("false", "0", "no", "off")
-    backup = get_secret("PAID_BACKUP_MODEL", DEFAULT_PAID_BACKUP)
-    if allowed and backup and backup not in chain:
-        chain.append(backup)
-    return chain
+def free_only(models):
+    """Keep only free models (this is the guard that makes paid models impossible)."""
+    return [m for m in models if is_free_model(m)]
 
 
 MAX_TOKENS = {
@@ -738,47 +730,39 @@ def get_openrouter_client(api_key):
 
 
 def call_openrouter(messages, models=None, max_tokens=700, temperature=0.7):
-    """Try each model in order. Free models come first; the paid backup is last.
-
-    A free model gets one quick try (a busy one is skipped fast). The paid backup gets two.
-    """
+    """Try each free model in turn. Paid models are never used."""
     api_key = get_secret("OPENROUTER_API_KEY")
     if not api_key:
         print("[inky] OPENROUTER_API_KEY is missing")
         raise RuntimeError("Inky can't reach its helper right now. Please tell your teacher or parent.")
     client = get_openrouter_client(api_key)
-    models = models or build_chain(FREE_TEXT_MODELS)
+    requested = list(models or FREE_TEXT_MODELS)
+    models = free_only(requested)
+    for skipped in set(requested) - set(models):
+        print(f"[inky] refused to use non-free model: {skipped}")
     errors = []
     for model in models:
-        free = is_free_model(model)
-        for attempt in range(1 if free else 2):
-            try:
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    timeout=FREE_TIMEOUT if free else PAID_TIMEOUT,
-                )
-                text = (resp.choices[0].message.content or "").strip()
-                if not text:
-                    raise RuntimeError("Empty response from model.")
-                st.session_state["last_model_used"] = model
-                if not free:
-                    print(f"[inky] used the paid backup model ({model}); free models were unavailable")
-                return text
-            except Exception as exc:
-                msg = str(exc)
-                errors.append(f"{model}: {msg[:110]}")
-                low = msg.lower()
-                if "401" in low or "invalid api key" in low:
-                    print("[inky] OpenRouter rejected the API key")
-                    raise RuntimeError("Inky can't reach its helper right now. Please tell your teacher or parent.")
-                if not free and ("429" in low or "rate limit" in low or "503" in low or "timeout" in low):
-                    time.sleep(0.8 * (attempt + 1))
-                    continue
-                break
-    print("[inky] every model failed: " + " || ".join(errors))
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                timeout=MODEL_TIMEOUT,
+            )
+            text = (resp.choices[0].message.content or "").strip()
+            if not text:
+                raise RuntimeError("Empty response from model.")
+            st.session_state["last_model_used"] = model
+            return text
+        except Exception as exc:
+            msg = str(exc)
+            errors.append(f"{model}: {msg[:110]}")
+            low = msg.lower()
+            if "401" in low or "invalid api key" in low:
+                print("[inky] OpenRouter rejected the API key")
+                raise RuntimeError("Inky can't reach its helper right now. Please tell your teacher or parent.")
+    print("[inky] every free model failed: " + " || ".join(errors))
     raise RuntimeError("Inky is very busy right now. Please try again in a moment.")
 
 
@@ -797,7 +781,7 @@ def call_json(prompt_text, task_key, models=None, temperature=0.55):
             {"role": "system", "content": "Return ONLY valid JSON matching the requested schema. No markdown fences."},
             {"role": "user", "content": prompt_text},
         ],
-        models=models or build_chain(FREE_TEXT_MODELS),
+        models=models or FREE_TEXT_MODELS,
         max_tokens=MAX_TOKENS[task_key],
         temperature=temperature,
     )
@@ -822,7 +806,7 @@ def transcribe_handwriting(uploaded_files):
     images_b64 = [compress_image_to_base64(f) for f in uploaded_files]
     return call_openrouter(
         transcription_messages(images_b64),
-        models=build_chain(FREE_VISION_MODELS),
+        models=FREE_VISION_MODELS,
         max_tokens=MAX_TOKENS["transcribe"],
         temperature=0.1,
     )
