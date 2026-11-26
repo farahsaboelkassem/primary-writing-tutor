@@ -766,26 +766,73 @@ def call_openrouter(messages, models=None, max_tokens=700, temperature=0.7):
     raise RuntimeError("Inky is very busy right now. Please try again in a moment.")
 
 
+def _fix_json_line(line):
+    """One "key": "value" line: swap stray double quotes inside the value for apostrophes."""
+    m = re.match(r'^(\s*"[^"\\]+"\s*:\s*)"(.*)"(\s*,?)\s*$', line)
+    if not m:
+        return line
+    head, body, tail = m.groups()
+    body = re.sub(r'(?<!\\)"', "'", body)
+    return f'{head}"{body}"{tail}'
+
+
+def _repair_json(text):
+    """Fix the usual slips free models make: smart quotes, stray quotes, missing or extra commas."""
+    t = text.replace("\u201c", '"').replace("\u201d", '"').replace("\u2018", "'").replace("\u2019", "'")
+    t = re.sub(r",\s*([}\]])", r"\1", t)                      # trailing commas
+    lines = [_fix_json_line(line) for line in t.splitlines()]
+    for i in range(len(lines) - 1):                               # missing commas between lines
+        cur, nxt = lines[i].rstrip(), lines[i + 1].lstrip()
+        if cur and nxt.startswith('"') and re.search(r'("|\}|\]|\d|true|false|null)$', cur):
+            lines[i] = cur + ","
+    return "\n".join(lines)
+
+
 def parse_json_block(raw_text):
     cleaned = re.sub(r"^```(?:json)?|```$", "", raw_text.strip(), flags=re.M).strip()
     start = cleaned.find("{")
     end = cleaned.rfind("}")
     if start != -1 and end != -1 and end > start:
         cleaned = cleaned[start:end + 1]
-    return json.loads(cleaned)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        return json.loads(_repair_json(cleaned))
+
+
+JSON_SYSTEM_PROMPT = (
+    "Return ONLY valid JSON matching the requested schema. No markdown fences. "
+    "Use double quotes only around keys and values. Inside any text value use single quotes, "
+    "never double quotes, and keep each value on one line."
+)
 
 
 def call_json(prompt_text, task_key, models=None, temperature=0.55):
-    raw = call_openrouter(
-        [
-            {"role": "system", "content": "Return ONLY valid JSON matching the requested schema. No markdown fences."},
-            {"role": "user", "content": prompt_text},
-        ],
-        models=models or FREE_TEXT_MODELS,
-        max_tokens=MAX_TOKENS[task_key],
-        temperature=temperature,
-    )
-    return parse_json_block(raw)
+    """Ask for JSON. If the answer can't be read, repair it, and if that fails ask once more."""
+    last_error = None
+    for attempt in range(2):
+        raw = call_openrouter(
+            [
+                {"role": "system", "content": JSON_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt_text},
+            ],
+            models=models or FREE_TEXT_MODELS,
+            max_tokens=MAX_TOKENS[task_key],
+            temperature=temperature if attempt == 0 else max(0.1, temperature - 0.3),
+        )
+        try:
+            return parse_json_block(raw)
+        except (json.JSONDecodeError, ValueError) as exc:
+            last_error = exc
+            print(f"[inky] unreadable JSON (attempt {attempt + 1}): {exc} | start of reply: {raw[:200]!r}")
+    raise RuntimeError("Inky got in a muddle. Please press the button again.") from last_error
+
+
+def friendly_error(exc):
+    """What a child sees. The real error goes to the logs."""
+    print(f"[inky] error: {exc}")
+    text = str(exc)
+    return text if text.startswith("Inky") else "Something went wrong. Please try again in a moment."
 
 
 # ------------------------------------------------------------------
@@ -1377,7 +1424,7 @@ if nav == "🥋 The Writing Dojo":
                 st.session_state[whole_prompt_key] = idea
                 award_xp(5)
             except Exception as exc:
-                st.error(str(exc))
+                st.error(friendly_error(exc))
 
     current_idea = st.session_state.get(whole_prompt_key)
     if current_idea:
@@ -1473,7 +1520,7 @@ if nav == "🥋 The Writing Dojo":
                             st.session_state[guide_key] = guide_data
                             award_xp(5)
                         except Exception as exc:
-                            st.error(str(exc))
+                            st.error(friendly_error(exc))
 
                 guide = st.session_state.get(guide_key)
                 if guide:

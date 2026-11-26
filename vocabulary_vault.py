@@ -668,11 +668,12 @@ def _setup_ai_quiz(c):
             with st.spinner("Preparing a fresh vocabulary challenge..."):
                 raw = c["ai_quiz"](focus, QUIZ_SIZE, history)
         except Exception as exc:
-            st.error(str(exc))
+            print(f"[inky] quiz could not be made: {exc}")
+            st.error("Inky couldn't make a quiz just now. Please try again in a moment.")
             return False
         questions = ai_to_questions(raw)
         if not questions:
-            st.error("The AI did not return a usable quiz. Please try again.")
+            st.error("Inky couldn't make a quiz this time. Please try again.")
             return False
         history.extend(str(q.get("word")) for q in (raw or []) if q.get("word"))
         start_run(questions, f"AI quiz: {focus}", "ai", {}, again=lambda: launch())
