@@ -1239,13 +1239,7 @@ with st.sidebar:
         st.session_state["db_synced_for"] = student_name.strip()
 
     xp_panel = st.empty()  # filled in at the very end of the page, so it always shows the latest XP
-    st.caption(f"{st.session_state['xp']} XP  •  Next rank at {next_xp} XP")
 
-    st.markdown("### 🏅 Badges")
-    st.markdown(
-        "".join(f'<span class="badge-chip">{b}</span>' for b in st.session_state["badges"]),
-        unsafe_allow_html=True,
-    )
     st.markdown("---")
     nav = st.radio(
         "Choose Your Adventure",
