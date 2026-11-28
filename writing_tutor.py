@@ -3923,7 +3923,7 @@ Return ONLY JSON:
 """.strip()
 
 
-def piece_marking_prompt(age_band, genre, rubric_key, text, wc=None, personal_instruction=""):
+def piece_marking_prompt(age_band, genre, rubric_key, text, wc=None, personal_instruction="", lesson_catalog=""):
     rubric = RUBRICS[rubric_key]
     parts = [
         "You are an experienced teacher marking a student's writing.",
@@ -3971,6 +3971,14 @@ def piece_marking_prompt(age_band, genre, rubric_key, text, wc=None, personal_in
     if personal_instruction:
         parts.append(personal_instruction)
         parts.append("")
+    if lesson_catalog:
+        parts.append(
+            "LESSON LIST. For next_lessons, choose ONLY ids from this list (id=title). Pick the 1 to 3 lessons "
+            "that would help most with the mistakes you actually saw in THIS writing, most important first. "
+            "Use [] if the writing has no clear mistakes to fix:"
+        )
+        parts.append(lesson_catalog)
+        parts.append("")
     parts.append(
         'Return ONLY JSON in this shape (no prose outside JSON):\n'
         '{\n'
@@ -3983,9 +3991,12 @@ def piece_marking_prompt(age_band, genre, rubric_key, text, wc=None, personal_in
         '  "comments": {"Wc": "...", "Wv": "...", "Wg": "...", "Ws": "...", "Ww": "..."},\n'
         '  "strengths": "<2 sentences>",\n'
         '  "improvements": "<2 sentences>",\n'
-        '  "wish": "<one actionable next step>"\n'
+        '  "wish": "<one actionable next step>",\n'
+        '  "next_lessons": ["<up to 3 ids from the LESSON LIST>"],\n'
+        '  "fixes": [{"wrote": "<exact words from the text>", "better": "<corrected words>", "why": "<5 to 10 words a child understands>"}]\n'
         '}'
     )
+    parts.append("fixes: list at most 3 real spelling, punctuation or grammar mistakes, copying the exact words the student wrote. Use [] if there are none.")
     parts.append("If wellbeing_concern is true, do not mention it in the comments; the app handles it separately.")
     parts.append(SAFETY_RULES)
     return "\n".join(parts)

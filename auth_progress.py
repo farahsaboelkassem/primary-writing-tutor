@@ -48,7 +48,11 @@ BADGE_RULES = [
 @st.cache_resource
 def get_supabase_client() -> Client:
     url = _get_secret_value("SUPABASE_URL", "supabase_url", "url")
-    key = _get_secret_value("SUPABASE_KEY", "supabase_key", "SUPABASE_ANON_KEY", "key")
+    try:
+        # Server-side only. Lets the database stay locked to the public (anon) key.
+        key = _get_secret_value("SUPABASE_SERVICE_KEY", "supabase_service_key", "SUPABASE_SERVICE_ROLE_KEY")
+    except KeyError:
+        key = _get_secret_value("SUPABASE_KEY", "supabase_key", "SUPABASE_ANON_KEY", "key")
     return create_client(url, key)
 
 

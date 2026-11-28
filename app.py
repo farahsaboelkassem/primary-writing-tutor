@@ -78,6 +78,19 @@ st.set_page_config(
 )
 
 from reading_section import render_reading_section, READING_UNIVERSE_CSS
+from dictation import dictation_button, join_text
+from games_arena import render_games_arena
+from lesson_catalog import catalog_for
+from parent_reports import handle_report_links, render_parent_reports
+from next_steps import build_next_steps, render_next_steps
+from spelling_arena import SPELLING_UNIVERSE_CSS, render_spelling_arena
+from landing_page import (
+    HOME_UNIVERSE_CSS, NAV_ARENA, NAV_DOJO, NAV_GAMES, NAV_GRAMMAR, NAV_HOME, NAV_LANGUAGE, NAV_OPTIONS,
+    NAV_PROGRESS, NAV_READING, NAV_SPELLING, NAV_VAULT, render_home,
+)
+from session_store import (
+    autosave_state, drop_invalid_choice, end_session, ensure_session, restore_state, resume_session, saved_note,
+)
 from safeguarding import (
     blocked_for, check_model_flags, clear_block, is_overridden, render_block, set_block, take_force,
 )
@@ -85,6 +98,7 @@ from auth_progress import (
     render_auth_page,
     render_profile_progress_tab,
     sign_out_student,
+    get_student_dashboard_data,
     log_student_activity,
     upsert_student_vocabulary,
     add_xp,
@@ -105,9 +119,30 @@ if not profile and os.environ.get("DEV_SKIP_LOGIN") == "1":
     }
     st.session_state["student_profile"] = profile
 
+def get_db():
+    """The database connection, or None. Never raises."""
+    try:
+        from auth_progress import get_supabase_client
+        return get_supabase_client()
+    except Exception as exc:
+        print(f"[inky] no database connection: {exc}")
+        return None
+
+
+# Links in report emails (confirm / stop) work without signing in.
+if handle_report_links(get_db()):
+    st.stop()
+
+if not profile:
+    profile = resume_session()
+
 if not profile:
     render_auth_page()
     st.stop()
+
+# Stay signed in after a refresh, and put back any work in progress.
+ensure_session(profile["student_id"])
+restore_state(profile["student_id"])
 # ------------------------------------------------------------------
 # Theme: shared look + one atmosphere (background universe) per section
 # ------------------------------------------------------------------
@@ -621,6 +656,39 @@ UNIVERSE_CSS = {
 }
 
 UNIVERSE_CSS["Reading"] = READING_UNIVERSE_CSS
+UNIVERSE_CSS["Home"] = HOME_UNIVERSE_CSS
+UNIVERSE_CSS["Spelling"] = SPELLING_UNIVERSE_CSS
+UNIVERSE_CSS["Game"] = """
+:root { --accent:#6d28d9; --accent-light:#8b5cf6; --accent-dark:#4c1d95; --accent-soft:#f1eaff; --hero-a:#4c1d95; --hero-b:#ec4899; }
+.stApp { background: linear-gradient(180deg, #120d3a 0%, #2b1a73 45%, #5b2a9c 80%, #8b3fb0 100%) !important; }
+.stApp::before {
+  background:
+    radial-gradient(2px 2px at 12% 18%, #fff 0 60%, transparent 100%),
+    radial-gradient(2px 2px at 28% 42%, #ffe08a 0 60%, transparent 100%),
+    radial-gradient(3px 3px at 47% 12%, #fff 0 60%, transparent 100%),
+    radial-gradient(2px 2px at 63% 33%, #9be7ff 0 60%, transparent 100%),
+    radial-gradient(3px 3px at 79% 16%, #fff 0 60%, transparent 100%),
+    radial-gradient(2px 2px at 91% 48%, #ffe08a 0 60%, transparent 100%),
+    radial-gradient(circle at 85% 12%, #fff3c4 0 28px, rgba(255,243,196,.3) 29px 56px, transparent 57px);
+}
+.stApp::after {
+  height: 20vh;
+  background:
+    linear-gradient(135deg, #2a1a66 25%, transparent 25%) -20px 0 / 40px 40px,
+    linear-gradient(225deg, #2a1a66 25%, transparent 25%) -20px 0 / 40px 40px,
+    linear-gradient(#2a1a66, #2a1a66) 0 24px / 100% 100% no-repeat;
+}
+"""
+
+
+def accent_for(nav_choice):
+    """The accent colour of a section's theme, for its button on the Home screen."""
+    for name, scene in UNIVERSE_CSS.items():
+        if name in str(nav_choice):
+            m = re.search(r"--accent:\s*(#[0-9a-fA-F]{3,8})", scene)
+            if m:
+                return m.group(1)
+    return "#6b63d9"
 
 
 def universe_css_for(nav_choice):
@@ -672,7 +740,7 @@ MAX_TOKENS = {
     "feedback": 320,
     "toolkit": 700,
     "worksheet": 1300,
-    "mark": 1300,
+    "mark": 1800,
     "quiz": 1200,
     "transcribe": 1500,
 }
@@ -1304,6 +1372,7 @@ if st.session_state.get("xp_synced_for") != profile["student_id"]:
 with st.sidebar:
     st.markdown(f"**Student:** {profile['display_name']}")
     if st.button("Sign Out", use_container_width=True):
+        end_session()
         sign_out_student()
         st.rerun()
 
@@ -1329,18 +1398,8 @@ with st.sidebar:
     xp_panel = st.empty()  # filled in at the very end of the page, so it always shows the latest XP
 
     st.markdown("---")
-    nav = st.radio(
-        "Choose Your Adventure",
-        [
-            "🥋 The Writing Dojo",
-            "🏟️ Marking Arena",
-            "📖 Reading",
-            "📚 Vocabulary Vault",
-            "✏️ Grammar & Punctuation",
-            "🎭 Language Arts",
-            "🏆 Progress & Badges",
-        ],
-    )
+    drop_invalid_choice("nav_choice", NAV_OPTIONS)
+    nav = st.radio("Choose Your Adventure", NAV_OPTIONS, key="nav_choice")
 
 st.markdown(universe_css_for(nav), unsafe_allow_html=True)
 
@@ -1363,7 +1422,19 @@ st.markdown(
 # ==================================================================
 # VIEW 1: THE WRITING DOJO (Step-by-step guided builder)
 # ==================================================================
-if nav == "🥋 The Writing Dojo":
+if nav == NAV_HOME:
+    render_home(
+        profile,
+        {
+            "age_band": age_band,
+            "xp": st.session_state.get("xp", 0),
+            "level_info": level_info,
+            "accent": accent_for,
+            "dashboard": get_student_dashboard_data,
+        },
+    )
+
+elif nav == "🥋 The Writing Dojo":
     render_inky_bubble(
         "Pick a style, brainstorm a topic, and build your piece one step at a time. "
         "When you're happy, send the whole piece straight to the Marking Arena!"
@@ -1371,20 +1442,29 @@ if nav == "🥋 The Writing Dojo":
 
     col_g1, col_g2, col_g3 = st.columns([1.2, 1.5, 1.3])
     with col_g1:
-        genre = st.radio("1. Writing World", ["Fiction", "Non-Fiction"], horizontal=True)
+        drop_invalid_choice("dojo_genre", ["Fiction", "Non-Fiction"])
+        genre = st.radio("1. Writing World", ["Fiction", "Non-Fiction"], horizontal=True, key="dojo_genre")
     with col_g2:
         if genre == "Non-Fiction":
-            nf_category = st.selectbox("2. Text Category", list(NON_FICTION_SUBGENRES.keys()))
-            subgenre = st.selectbox("3. Text Type", NON_FICTION_SUBGENRES[nf_category])
+            drop_invalid_choice("dojo_nf_cat", list(NON_FICTION_SUBGENRES.keys()))
+            nf_category = st.selectbox("2. Text Category", list(NON_FICTION_SUBGENRES.keys()), key="dojo_nf_cat")
+            nf_key = "dojo_nf_type_" + re.sub(r"[^a-zA-Z0-9]", "_", nf_category)
+            drop_invalid_choice(nf_key, NON_FICTION_SUBGENRES[nf_category])
+            subgenre = st.selectbox("3. Text Type", NON_FICTION_SUBGENRES[nf_category], key=nf_key)
             if subgenre == "Biography/Autobiography":
-                bio_choice = st.radio("Focus", ["Autobiography", "Biography"], horizontal=True)
+                drop_invalid_choice("dojo_bio", ["Autobiography", "Biography"])
+                bio_choice = st.radio("Focus", ["Autobiography", "Biography"], horizontal=True, key="dojo_bio")
                 subgenre = bio_choice
             elif subgenre == "Persuasive Writing":
-                layout_choice = st.selectbox("Persuasive Format", PERSUASIVE_LAYOUTS)
+                drop_invalid_choice("dojo_layout", PERSUASIVE_LAYOUTS)
+                layout_choice = st.selectbox("Persuasive Format", PERSUASIVE_LAYOUTS, key="dojo_layout")
                 subgenre = f"Persuasive Writing::{layout_choice}"
         else:
-            fic_category = st.selectbox("2. Story Category", list(FICTION_STYLES.keys()))
-            subgenre = st.selectbox("3. Story Style / Skill", FICTION_STYLES[fic_category])
+            drop_invalid_choice("dojo_fic_cat", list(FICTION_STYLES.keys()))
+            fic_category = st.selectbox("2. Story Category", list(FICTION_STYLES.keys()), key="dojo_fic_cat")
+            fic_key = "dojo_fic_type_" + re.sub(r"[^a-zA-Z0-9]", "_", fic_category)
+            drop_invalid_choice(fic_key, FICTION_STYLES[fic_category])
+            subgenre = st.selectbox("3. Story Style / Skill", FICTION_STYLES[fic_category], key=fic_key)
 
     clean_subgenre = subgenre.replace("::", " — ")
     icon = SUBGENRE_ICONS.get(subgenre.split("::")[0], "✨")
@@ -1526,6 +1606,9 @@ if nav == "🥋 The Writing Dojo":
                 if guide:
                     render_guide_extras(guide, clean_subgenre, title, step_slug, award_xp)
 
+                spoken = dictation_button(step_slug, show_hint=(i == 0))
+                if spoken:
+                    st.session_state[text_key] = join_text(st.session_state.get(text_key, ""), spoken)
                 part_text = st.text_area(
                     f"Write your {step_label}:",
                     key=text_key,
@@ -1582,12 +1665,12 @@ elif nav == "🏟️ Marking Arena":
 
     col_m1, col_m2 = st.columns([1.2, 1.8])
     with col_m1:
-        default_genre_idx = 0 if st.session_state.get("arena_genre", "Fiction") == "Fiction" else 1
-        arena_genre = st.radio("Rubric Type", ["Fiction", "Non-Fiction"], index=default_genre_idx, horizontal=True)
+        drop_invalid_choice("arena_genre", ["Fiction", "Non-Fiction"])
+        arena_genre = st.radio("Rubric Type", ["Fiction", "Non-Fiction"], horizontal=True, key="arena_genre")
     with col_m2:
         arena_subgenre = st.text_input(
             "Text Type / Topic (optional)",
-            value=st.session_state.get("arena_subgenre", ""),
+            key="arena_subgenre",
             placeholder="e.g., Adventure Story, News Report, Persuasive Letter",
         )
 
@@ -1613,6 +1696,9 @@ elif nav == "🏟️ Marking Arena":
                     print(f"[inky] transcription failed: {exc}")
                     st.error("Inky couldn't read those photos. Try a clearer, well-lit photo.")
 
+    spoken = dictation_button("arena")
+    if spoken:
+        st.session_state["arena_text"] = join_text(st.session_state.get("arena_text", ""), spoken)
     writing_text = st.text_area(
         "Your Writing",
         value=st.session_state.get("arena_text", ""),
@@ -1640,6 +1726,7 @@ elif nav == "🏟️ Marking Arena":
             else:
                 with st.spinner("Inky is reading your work carefully..."):
                     try:
+                        lesson_cat_text, lesson_cat_index = catalog_for(age_band, get_db())
                         result = call_json(
                             piece_marking_prompt(
                                 age_band,
@@ -1648,6 +1735,7 @@ elif nav == "🏟️ Marking Arena":
                                 writing_text,
                                 wc=wc,
                                 personal_instruction=personal_instruction(),
+                                lesson_catalog=lesson_cat_text,
                             ),
                             "mark",
                             temperature=0.3,
@@ -1680,6 +1768,8 @@ elif nav == "🏟️ Marking Arena":
                             result["cap_note"] = cap_note
                             result["genre"] = arena_genre
                             result["subgenre"] = arena_subgenre or rubric_key
+                            result["next_steps"], result["fixes"] = build_next_steps(result, lesson_cat_index, writing_text)
+                            result.pop("next_lessons", None)
                             st.session_state["last_marking"] = result
 
                             summary_fb = (
@@ -1733,6 +1823,7 @@ elif nav == "🏟️ Marking Arena":
     res = st.session_state.get("last_marking")
     if res:
         render_marking_feedback(res, rubric_key, age_band)
+        render_next_steps(res, profile["student_id"], get_db())
         render_arena_suggestions(
             genre=str(res.get("subgenre") or "").split("::")[0],
             age_band=age_band,
@@ -1779,6 +1870,27 @@ elif nav == "🎭 Language Arts":
 # ==================================================================
 # VIEW 5: PROGRESS & BADGES
 # ==================================================================
+elif nav == NAV_GAMES:
+    render_games_arena(
+        get_db(), profile["student_id"], age_band,
+        bubble=render_inky_bubble, award_xp=award_xp, log_activity=safe_log_activity,
+    )
+
+elif nav == NAV_SPELLING:
+    try:
+        from auth_progress import get_supabase_client as _spelling_db
+        spelling_db = _spelling_db()
+    except Exception as exc:
+        print(f"[inky] spelling: no database connection: {exc}")
+        spelling_db = None
+    render_spelling_arena(
+        spelling_db,
+        user_id=profile["student_id"],
+        bubble=render_inky_bubble,
+        award_xp=award_xp,
+        log_activity=safe_log_activity,
+    )
+
 elif nav == "🏆 Progress & Badges":
     from auth_progress import get_student_dashboard_data, compute_title, _parse_badges, refresh_student_profile
 
@@ -1884,6 +1996,9 @@ elif nav == "🏆 Progress & Badges":
                 unsafe_allow_html=True,
             )
 
+    st.markdown("---")
+    render_parent_reports(get_db(), profile)
+
 with xp_panel.container():
     live_xp = int(st.session_state["xp"])
     lvl_name, pct, next_xp = level_info(live_xp)
@@ -1900,3 +2015,9 @@ with xp_panel.container():
         "".join(f'<span class="badge-chip">{b}</span>' for b in st.session_state["badges"]),
         unsafe_allow_html=True,
     )
+
+with st.sidebar:
+    saved_note()
+
+# Save work in progress last, so it always reflects this run.
+autosave_state(profile["student_id"])
